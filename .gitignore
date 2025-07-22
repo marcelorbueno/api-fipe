@@ -1,0 +1,25 @@
+# Node modules
+/node_modules
+
+# Ambiente
+.env
+.env.*
+!.env.example
+
+# Build output (caso compile para dist/build futuramente)
+dist
+build
+
+# Docker
+/data
+
+# Prisma databases locais (se usar sqlite para testes)
+prisma/*.db
+prisma/*.sqlite
+
+# Arquivos temporários do npm/yarn
+npm-debug.log*
+yarn-debug.log*
+
+# TypeScript build info (caso utilize incremental)
+*.tsbuildinfo

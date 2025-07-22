@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String
+  num_cpf      String   @unique @db.VarChar(11)
+  email        String   @unique
+  birthday     DateTime @db.Date
+  phone_number String
+  avatar       String?
+  is_active    Boolean  @default(true)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Vehicle {
+  id                String   @id @default(uuid()) @db.Uuid
+  car_license_plate String   @unique @db.VarChar(8)
+  color_id          String
+  type_id           String
+  brand_id          String
+  model_id          String
+  year              String
+  owner_id          String   @db.Uuid
+  renavam           String   @unique @db.VarChar(11)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  owner Owner @relation(fields: [owner_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@map("vehicles")
+}
+
+model Owner {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String
+  num_cpf      String   @unique @db.VarChar(11)
+  email        String   @unique
+  birthday     DateTime @db.Date
+  phone_number String
+  avatar       String?
+  is_active    Boolean  @default(true)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  Vehicle Vehicle[]
+
+  @@map("owners")
+}

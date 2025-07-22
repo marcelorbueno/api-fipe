@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 const envSchema = z.object({
   PORT: z.coerce.number().default(3001),
-  API_FIPE_PATH: z.string(),
+  API_FIPE_PATH: z.string().url(),
 })
 
 const _env = envSchema.safeParse(process.env)

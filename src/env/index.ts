@@ -4,6 +4,9 @@ import { z } from 'zod'
 const envSchema = z.object({
   PORT: z.coerce.number().default(3001),
   API_FIPE_PATH: z.string().url(),
+  JWT_SECRET: z.string().min(32),
+  JWT_EXPIRES_IN: z.string().default('15m'),
+  JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
 })
 
 const _env = envSchema.safeParse(process.env)

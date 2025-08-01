@@ -1,15 +1,15 @@
-import { FastifyInstance, FastifyRequest } from 'fastify'
+import { FastifyInstance } from 'fastify'
 import { PrismaClient } from '@prisma/client'
 import { z } from 'zod'
+import { authenticate } from '../middleware/auth'
 
 const prisma = new PrismaClient()
 
-// Schema para validação de parâmetros
+// Schemas
 const getPartnerParamsSchema = z.object({
   id: z.string().uuid(),
 })
 
-// Schema para query parameters
 const listPartnersQuerySchema = z.object({
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(10),
@@ -18,16 +18,13 @@ const listPartnersQuerySchema = z.object({
 
 export async function partnersRoutes(app: FastifyInstance) {
   // GET /partners - Listar todos os proprietários
-  app.get('/partners', async (
-    req:
-    FastifyRequest<{ Querystring: z.infer<typeof listPartnersQuerySchema> }>,
-    res,
-  ) => {
+  app.get('/partners', async (req, res) => {
+    await authenticate(req, res)
+
     try {
       const { page, limit, active } = listPartnersQuerySchema.parse(req.query)
 
       const skip = (page - 1) * limit
-
       const whereCondition = active !== undefined
         ? { is_active: active }
         : {}
@@ -50,19 +47,19 @@ export async function partnersRoutes(app: FastifyInstance) {
         prisma.partner.count({ where: whereCondition }),
       ])
 
-      // Buscar contagem de veículos separadamente para cada partner
-      const partnersWithVehicleCount = await Promise.all(
-        partners.map(async (partner) => {
-          const vehicleCount = await prisma.vehicleOwnership.count({
-            where: { partner_id: partner.id },
-          })
+      // ← SOLUÇÃO SIMPLES: usar for...of loop
+      const partnersWithVehicleCount = []
 
-          return {
-            ...partner,
-            vehicle_count: vehicleCount,
-          }
-        }),
-      )
+      for (const partner of partners) {
+        const vehicleCount = await prisma.vehicleOwnership.count({
+          where: { partner_id: partner.id },
+        })
+
+        partnersWithVehicleCount.push({
+          ...partner,
+          vehicle_count: vehicleCount,
+        })
+      }
 
       return res.send({
         data: partnersWithVehicleCount,
@@ -84,10 +81,9 @@ export async function partnersRoutes(app: FastifyInstance) {
   })
 
   // GET /partners/:id - Buscar proprietário específico
-  app.get('/partners/:id', async (
-    req: FastifyRequest<{ Params: z.infer<typeof getPartnerParamsSchema> }>,
-    res,
-  ) => {
+  app.get('/partners/:id', async (req, res) => {
+    await authenticate(req, res)
+
     try {
       const { id } = getPartnerParamsSchema.parse(req.params)
 
@@ -127,6 +123,8 @@ export async function partnersRoutes(app: FastifyInstance) {
 
   // GET /partners/stats - Estatísticas dos proprietários
   app.get('/partners/stats', async (req, res) => {
+    await authenticate(req, res)
+
     try {
       const [
         totalPartners,
@@ -152,8 +150,11 @@ export async function partnersRoutes(app: FastifyInstance) {
       ])
 
       const avgVehicles = avgVehiclesPerPartner.length > 0
-        ? avgVehiclesPerPartner.reduce((acc, curr) =>
-          acc + curr._count.vehicle_id, 0) / avgVehiclesPerPartner.length
+        ? avgVehiclesPerPartner.reduce(
+          (acc: number, curr: { _count: { vehicle_id: number } }) =>
+            acc + curr._count.vehicle_id,
+          0,
+        ) / avgVehiclesPerPartner.length
         : 0
 
       return res.send({

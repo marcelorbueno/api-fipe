@@ -7,113 +7,122 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Usuários do sistema (login/autenticação)
 model User {
-  id           String   @id @default(uuid()) @db.Uuid
-  name         String
-  num_cpf      String   @unique @db.VarChar(11)
-  email        String   @unique
-  birthday     DateTime @db.Date
+  id String @id @default(uuid()) @db.Uuid
+  name String
+  num_cpf String @unique @db.VarChar(11)
+  email String @unique
+  password String
+  birthday DateTime @db.Date
   phone_number String
-  avatar       String?
-  is_active    Boolean  @default(true)
-  created_at   DateTime @default(now())
-  updated_at   DateTime @updatedAt
+  avatar String?
+  profile UserProfile @default(INVESTOR)
+  is_active Boolean @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  refresh_tokens RefreshToken[]
 
   @@map("users")
 }
 
-// Sócios da BMC Car (proprietários de veículos)
-model Partner {
-  id           String   @id @default(uuid()) @db.Uuid
-  name         String
-  num_cpf      String   @unique @db.VarChar(11)
-  email        String   @unique
-  birthday     DateTime @db.Date
-  phone_number String
-  avatar       String?
-  is_active    Boolean  @default(true)
-  created_at   DateTime @default(now())
-  updated_at   DateTime @updatedAt
+model RefreshToken {
+  id String @id @default(uuid()) @db.Uuid
+  token String @unique
+  user_id String @db.Uuid
+  expires_at DateTime
+  created_at DateTime @default(now())
 
-  // Relacionamentos
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model Partner {
+  id String @id @default(uuid()) @db.Uuid
+  name String
+  num_cpf String @unique @db.VarChar(11)
+  email String @unique
+  birthday DateTime @db.Date
+  phone_number String
+  avatar String?
+  is_active Boolean @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
   vehicle_ownerships VehicleOwnership[]
 
   @@map("partners")
 }
 
-// Veículos
 model Vehicle {
-  id            String @id @default(uuid()) @db.Uuid
+  id String @id @default(uuid()) @db.Uuid
   license_plate String @unique @db.VarChar(8)
-  renavam       String @unique @db.VarChar(11)
-
-  // Dados para integração com FIPE API (integers conforme API)
-  fipe_brand_code Int // Código da marca na API FIPE (ex: 59)
-  fipe_model_code Int // Código do modelo na API FIPE  
-  year            String // Ano do veículo (ex: "2023-1")
-  fuel_type       String // Gasolina, Álcool, Diesel, etc.
-  vehicle_type    VehicleType // "cars", "motorcycles" ou "trucks"
-
-  // Dados adicionais
-  color          String?
-  observations   String?
-  purchase_date  DateTime?
-  purchase_value Decimal?  @db.Decimal(12, 2)
-
+  renavam String @unique @db.VarChar(11)
+  
+  fipe_brand_code Int
+  fipe_model_code Int
+  year String
+  fuel_type String
+  vehicle_type VehicleType
+  
+  color String?
+  observations String?
+  purchase_date DateTime?
+  purchase_value Decimal? @db.Decimal(12,2)
+  
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  // Relacionamentos
   ownerships VehicleOwnership[]
 
   @@map("vehicles")
 }
 
-// Tabela de relacionamento para propriedade compartilhada
 model VehicleOwnership {
   id String @id @default(uuid()) @db.Uuid
-
-  vehicle_id           String  @db.Uuid
-  partner_id           String  @db.Uuid
-  ownership_percentage Decimal @db.Decimal(5, 2) // Ex: 50.00 para 50%
-
+  
+  vehicle_id String @db.Uuid
+  partner_id String @db.Uuid
+  ownership_percentage Decimal @db.Decimal(5,2)
+  
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  // Relacionamentos
   vehicle Vehicle @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
   partner Partner @relation(fields: [partner_id], references: [id], onDelete: Cascade)
 
-  // Garantir que não haja duplicatas
   @@unique([vehicle_id, partner_id])
   @@map("vehicle_ownerships")
 }
 
-// Cache dos valores FIPE para otimizar consultas
 model FipeCache {
   id String @id @default(uuid()) @db.Uuid
-
-  brand_code   Int // Integer conforme API
-  model_code   Int // Integer conforme API
-  year         String
-  fuel_type    String
+  
+  brand_code Int
+  model_code Int
+  year String
+  fuel_type String
   vehicle_type VehicleType
-
-  fipe_value      Decimal @db.Decimal(12, 2)
-  reference_month String // Ex: "janeiro/2025"
-
+  
+  fipe_value Decimal @db.Decimal(12,2)
+  reference_month String
+  
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  // Índice único para evitar duplicatas
   @@unique([brand_code, model_code, year, fuel_type, vehicle_type])
   @@map("fipe_cache")
 }
 
-// Enum conforme API FIPE
 enum VehicleType {
-  cars // Carros
-  motorcycles // Motos
-  trucks // Caminhões
+  cars
+  motorcycles
+  trucks
+}
+
+enum UserProfile {
+  ADMINISTRATOR
+  PARTNER
+  INVESTOR
 }

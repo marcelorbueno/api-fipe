@@ -1,9 +1,28 @@
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, UserProfile } from '@prisma/client'
+import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
 async function main() {
-  console.log('🌱 Criando sócios da BMC Car...')
+  console.log('🌱 Criando dados iniciais da BMC Car...')
+
+  // Criar usuário administrador
+  const adminPassword = await bcrypt.hash('admin123', 10)
+  const adminUser = await prisma.user.create({
+    data: {
+      name: 'Admin BMC Car',
+      num_cpf: '11111111111',
+      email: 'admin@bmccar.com',
+      password: adminPassword, // ✅ Campo obrigatório adicionado
+      birthday: new Date('1980-01-01'),
+      phone_number: '11999999999',
+      avatar: null,
+      profile: UserProfile.ADMINISTRATOR, // ✅ Perfil de administrador
+      is_active: true,
+    },
+  })
+
+  console.log(`✅ Usuário admin criado: ${adminUser.name} (${adminUser.email})`)
 
   // Criar os 4 sócios da BMC Car
   const partners = await Promise.all([
@@ -57,25 +76,48 @@ async function main() {
   ])
 
   console.log('✅ Sócios criados com sucesso!')
-
   partners.forEach((partner, index) => {
-    console.log(`${index + 1}. ${partner.name} (ID: ${partner.id})`)
+    console.log(`${index + 1}. ${partner.name} (${partner.email})`)
   })
 
-  // Criar um usuário admin
-  const adminUser = await prisma.user.create({
+  // Criar usuários do sistema para cada perfil (exemplo)
+  const partnerPassword = await bcrypt.hash('partner123', 10)
+  const investorPassword = await bcrypt.hash('investor123', 10)
+
+  const partnerUser = await prisma.user.create({
     data: {
-      name: 'Admin BMC Car',
-      num_cpf: '11111111111',
-      email: 'admin@bmccar.com',
-      birthday: new Date('1980-01-01'),
-      phone_number: '11999999999',
+      name: 'João Silva User',
+      num_cpf: '22222222222',
+      email: 'joao.user@bmccar.com',
+      password: partnerPassword,
+      birthday: new Date('1985-03-15'),
+      phone_number: '11987654322',
       avatar: null,
+      profile: UserProfile.PARTNER,
       is_active: true,
     },
   })
 
-  console.log(`✅ Usuário admin criado: ${adminUser.name} (ID: ${adminUser.id})`)
+  const investorUser = await prisma.user.create({
+    data: {
+      name: 'Maria Investidora',
+      num_cpf: '33333333333',
+      email: 'maria.investor@bmccar.com',
+      password: investorPassword,
+      birthday: new Date('1990-05-10'),
+      phone_number: '11876543211',
+      avatar: null,
+      profile: UserProfile.INVESTOR,
+      is_active: true,
+    },
+  })
+
+  console.log('✅ Usuários de sistema criados:')
+  console.log(`- Admin: ${adminUser.email} (senha: admin123)`)
+  console.log(`- Sócio: ${partnerUser.email} (senha: partner123)`)
+  console.log(`- Investidor: ${investorUser.email} (senha: investor123)`)
+
+  console.log('\n🎉 Seed executado com sucesso!')
 }
 
 main()
@@ -83,8 +125,7 @@ main()
     await prisma.$disconnect()
   })
   .catch(async (e) => {
-    console.error('❌ Erro ao criar dados:', e)
-
+    console.error('❌ Erro ao executar seed:', e)
     await prisma.$disconnect()
     process.exit(1)
   })

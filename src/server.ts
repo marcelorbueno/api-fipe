@@ -1,23 +1,38 @@
 import { app } from './app'
-import cors from '@fastify/cors'
+import fastifyCors from '@fastify/cors'
+import fastifyJwt from '@fastify/jwt'
+import { authenticate } from './middleware/auth'
 import { fipeRoutes } from './routes/fipe'
-import { env } from './env'
 import { partnersRoutes } from './routes/partners'
+import { authRoutes } from './routes/auth'
+import { env } from './env'
 
 const PORT = env.PORT
 
 async function start() {
-  await app.register(cors, { origin: '*' })
-  await app.register(fipeRoutes)
-  await app.register(partnersRoutes)
+  try {
+    // Registrar CORS
+    await app.register(fastifyCors, { origin: '*' })
 
-  app.listen({ port: Number(PORT), host: '0.0.0.0' }, (err, address) => {
-    if (err) {
-      console.error(err)
-      process.exit(1)
-    }
-    console.log(`Server listening on ${address}`)
-  })
+    // Registrar JWT
+    await app.register(fastifyJwt, {
+      secret: env.JWT_SECRET,
+    })
+
+    // Adicionar método authenticate ao app
+    app.decorate('authenticate', authenticate)
+
+    // Registrar rotas
+    await app.register(authRoutes)
+    await app.register(fipeRoutes)
+    await app.register(partnersRoutes)
+
+    await app.listen({ port: Number(PORT), host: '0.0.0.0' })
+    console.log(`🚀 Server listening on port ${PORT}`)
+  } catch (error) {
+    console.error('❌ Erro ao iniciar servidor:', error)
+    process.exit(1)
+  }
 }
 
 start()

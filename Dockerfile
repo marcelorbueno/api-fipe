@@ -1,18 +1,13 @@
 FROM node:20-alpine
 
 # Configurar proxy
-RUN echo "http://10.3.2.55:3128" > /etc/apk/proxy_http && \
-    echo "http://10.3.2.55:3128" > /etc/apk/proxy_https
-
-ENV NODE_ENV=development \
-    http_proxy=http://10.3.2.55:3128/ \
+ENV http_proxy=http://10.3.2.55:3128/ \
     https_proxy=http://10.3.2.55:3128/ \
     HTTP_PROXY=http://10.3.2.55:3128/ \
     HTTPS_PROXY=http://10.3.2.55:3128/ \
-    no_proxy=localhost,127.0.0.1,postgres \
-    NO_PROXY=localhost,127.0.0.1,postgres
-
-RUN apk add --no-cache postgresql15-client openssl openssl-dev
+    no_proxy=localhost,127.0.0.1,postgres,fipe.parallelum.com.br \
+    NO_PROXY=localhost,127.0.0.1,postgres,fipe.parallelum.com.br \
+    NODE_ENV=development
 
 WORKDIR /app
 
@@ -20,6 +15,9 @@ COPY package*.json ./
 RUN npm install
 
 COPY . .
+
+# Gerar o Prisma Client
+RUN npx prisma generate
 
 EXPOSE 3001
 

@@ -7,7 +7,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string(),
   JWT_SECRET: z.string(),
   API_FIPE_PATH: z.string().default('https://fipe.parallelum.com.br/api/v2'),
-  FIPE_SUBSCRIPTION_TOKEN: z.string(),
+  FIPE_REFERENCE: z.string().default('324'), // ✅ Fallback
 
   // Variáveis de Proxy
   HTTP_PROXY: z.string().optional(),

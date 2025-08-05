@@ -23,7 +23,6 @@
     "fastify": "4.28.1",
     "https-proxy-agent": "^7.0.2",
     "jsonwebtoken": "^9.0.2",
-    "node-fetch": "^3.3.2",
     "prisma": "^6.13.0",
     "zod": "3.25.32"
   },

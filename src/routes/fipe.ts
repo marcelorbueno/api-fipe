@@ -1,143 +1,195 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
-import { z } from 'zod'
+import { AxiosError } from 'axios' // ✅ IMPORTAR AxiosError
+import axios from '../config/axios'
 import { env } from '../env'
-import { fetchWithProxy } from '@/utils/httpClient'
-import axiosConfigured from '../config/axios'
-
-// Schema para validar o tipo de veículo (apenas carros e motos)
-const vehicleTypeSchema = z.enum(['cars', 'motorcycles'])
-
-// Interface para o retorno da API FIPE
-interface FipeBrand {
-  code: string
-  name: string
-}
-
-// Interface para os parâmetros da rota
-interface VehicleTypeParams {
-  vehicleType: string
-}
 
 export async function fipeRoutes(app: FastifyInstance) {
-  // GET /fipe/:vehicleType/brands - Listar marcas por tipo de veículo
-  app.get<{ Params: VehicleTypeParams }>(
-    '/fipe/:vehicleType/brands',
-    {
-      preHandler: [app.authenticate],
-    },
-    async (request: FastifyRequest<
-      { Params: VehicleTypeParams }>, reply: FastifyReply) => {
-      try {
-        const { vehicleType } = request.params
+  // ⚠️ Rota de teste apenas em ambiente de desenvolvimento
+  if (env.NODE_ENV === 'development') {
+    app.get('/fipe/test-connection',
+      async (request: FastifyRequest, reply: FastifyReply) => {
+        try {
+          console.log('🔧 [DEV] Testando configurações de proxy com axios...')
+          console.log('HTTP_PROXY:', process.env.HTTP_PROXY)
+          console.log('HTTPS_PROXY:', process.env.HTTPS_PROXY)
 
-        // Validar tipo de veículo
-        const validVehicleType = vehicleTypeSchema.parse(vehicleType)
+          const response = await axios.get('https://httpbin.org/ip')
 
-        const url = `${
-          env.API_FIPE_PATH}/${validVehicleType}/brands?reference=278`
-        console.log('🚀 Fazendo requisição para:', url)
-
-        // Fazer requisição para a API FIPE com token
-        const response = await fetchWithProxy(url, {
-          method: 'GET',
-          headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            'X-Subscription-Token': env.FIPE_SUBSCRIPTION_TOKEN,
-          },
-        })
-
-        console.log('📊 Status da resposta:', response.status)
-
-        if (!response.ok) {
-          console.error(
-            '❌ Erro na API FIPE:', response.status, response.statusText)
-          return reply.status(502).send({
-            error: 'Erro ao consultar API FIPE',
-            status: response.status,
-            statusText: response.statusText,
+          console.log('✅ Teste de conectividade OK:', response.data)
+          return reply.send({
+            status: 'success',
+            message: 'Conectividade com proxy OK via axios',
+            data: response.data,
+            environment: 'development',
+          })
+        } catch (error: unknown) { // ✅ TIPAR COMO unknown
+          console.error('❌ Teste de conectividade falhou:', error)
+          return reply.status(500).send({
+            error: 'Teste de conectividade falhou',
+            details: error instanceof Error
+              ? error.message
+              : 'Erro desconhecido',
+            environment: 'development',
           })
         }
+      })
+  }
 
-        const brands: FipeBrand[] = await response.json()
-        console.log('✅ Sucesso! Recebidas', brands.length, 'marcas')
+  // 🚗 Rota para listar tipos de veículos disponíveis
+  app.get('/fipe/vehicle-types', {
+    preHandler: [app.authenticate],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      console.log('🚗 Retornando tipos de veículos disponíveis...')
 
-        return reply.send({
-          vehicle_type: validVehicleType,
-          total_brands: brands.length,
-          brands,
-        })
-      } catch (error) {
-        console.error('❌ Erro na requisição:', error)
-
-        if (error instanceof z.ZodError) {
-          return reply.status(400).send({
-            error: 'Tipo de veículo inválido',
-            valid_types: ['cars', 'motorcycles'],
-          })
-        }
-
-        return reply.status(500).send({
-          error: 'Erro interno do servidor',
-          details: error instanceof Error
-            ? error.message
-            : 'Erro desconhecido',
-        })
-      }
-    },
-  )
-
-  // GET /fipe/vehicle-types - Listar tipos disponíveis
-  app.get(
-    '/fipe/vehicle-types',
-    {
-      preHandler: [app.authenticate],
-    },
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      return reply.send({
+      const vehicleTypes = {
         vehicle_types: [
           {
             code: 'cars',
             name: 'Carros',
-            description: 'Automóveis de passeio',
           },
           {
             code: 'motorcycles',
             name: 'Motocicletas',
-            description: 'Motos e ciclomotores',
           },
         ],
+      }
+
+      console.log('✅ Tipos de veículos retornados com sucesso')
+      return reply.send(vehicleTypes)
+    } catch (error: unknown) {
+      console.error('❌ Erro ao buscar tipos de veículos:', error)
+
+      return reply.status(500).send({
+        error: 'Erro interno do servidor',
+        details: error instanceof Error
+          ? error.message
+          : 'Erro desconhecido',
       })
-    },
-  )
+    }
+  })
 
-  // Adicione este endpoint no final do arquivo fipeRoutes
-  app.get('/fipe/test-connection',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      try {
-        console.log('🔧 Testando configurações de proxy com axios...')
-        console.log('HTTP_PROXY:', process.env.HTTP_PROXY)
-        console.log('HTTPS_PROXY:', process.env.HTTPS_PROXY)
+  // 🏷️ Rota para listar marcas por tipo de veículo
+  app.get('/fipe/:vehicleType/brands', {
+    preHandler: [app.authenticate],
+  }, async (request, reply) => {
+    try {
+      const { vehicleType } = request.params as { vehicleType: string }
+      console.log(`🏷️ Buscando marcas para tipo de veículo: ${vehicleType}`)
 
-        // Teste com httpbin usando axios configurado
-        const response = await axiosConfigured.get('https://httpbin.org/ip', {
-          headers: { Accept: 'application/json' },
-        })
-
-        console.log('✅ Teste de conectividade OK:', response.data)
-        return reply.send({
-          status: 'success',
-          message: 'Conectividade com proxy OK via axios',
-          data: response.data,
-        })
-      } catch (error) {
-        console.error('❌ Teste de conectividade falhou:', error)
-        return reply.status(500).send({
-          error: 'Teste de conectividade falhou',
-          details: error instanceof Error
-            ? error.message
-            : 'Erro desconhecido',
+      // Validar tipo de veículo
+      const validTypes = ['cars', 'motorcycles']
+      if (!validTypes.includes(vehicleType)) {
+        return reply.status(400).send({
+          error: 'Tipo de veículo inválido',
+          validTypes,
+          received: vehicleType,
         })
       }
-    })
+
+      const response = await axios.get(
+        `${env.API_FIPE_PATH}/${vehicleType}/brands`, {
+          params: {
+            reference: env.FIPE_REFERENCE,
+          },
+        })
+
+      console.log(`✅ Marcas obtidas com sucesso para ${vehicleType}`)
+      return reply.send(response.data)
+    } catch (error: unknown) {
+      console.error('❌ Erro ao buscar marcas:', error)
+
+      if (error instanceof AxiosError && error.response) {
+        return reply.status(error.response.status).send({
+          error: 'Erro na API da FIPE',
+          status: error.response.status,
+        })
+      }
+
+      return reply.status(500).send({
+        error: 'Erro interno do servidor',
+        details: error instanceof Error
+          ? error.message
+          : 'Erro desconhecido',
+      })
+    }
+  })
+
+  // 🚙 Rota para listar modelos por marca
+  app.get('/fipe/:vehicleType/brands/:brandId/models', {
+    preHandler: [app.authenticate],
+  }, async (request: FastifyRequest<{
+    Params: { vehicleType: string; brandId: string }
+  }>, reply: FastifyReply) => {
+    try {
+      const { vehicleType, brandId } = request.params
+      console.log(`🚙 Buscando modelos para marca ${brandId} do tipo ${vehicleType}`)
+
+      // Validar tipo de veículo
+      const validTypes = ['cars', 'motorcycles']
+      if (!validTypes.includes(vehicleType)) {
+        return reply.status(400).send({
+          error: 'Tipo de veículo inválido',
+          validTypes,
+          received: vehicleType,
+        })
+      }
+
+      const response = await axios.get(
+        `${env.API_FIPE_PATH}/${vehicleType}/brands/${brandId}/models`, {
+          params: {
+            reference: env.FIPE_REFERENCE,
+          },
+        })
+
+      console.log('✅ Modelos obtidos com sucesso')
+      return reply.send(response.data)
+    } catch (error: unknown) {
+      console.error('❌ Erro ao buscar modelos:', error)
+
+      if (error instanceof AxiosError && error.response) {
+        return reply.status(error.response.status).send({
+          error: 'Erro na API da FIPE',
+          status: error.response.status,
+        })
+      }
+
+      return reply.status(500).send({
+        error: 'Erro interno do servidor',
+        details: error instanceof Error
+          ? error.message
+          : 'Erro desconhecido',
+      })
+    }
+  })
+
+  // 📅 Rota para listar tabelas de referência (meses/anos)
+  app.get('/fipe/references', {
+    preHandler: [app.authenticate],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      console.log('📅 Buscando tabelas de referência disponíveis...')
+
+      const response = await axios.get(`${env.API_FIPE_PATH}/references`)
+
+      console.log('✅ Tabelas de referência obtidas com sucesso')
+      return reply.send(response.data)
+    } catch (error: unknown) {
+      console.error('❌ Erro ao buscar tabelas de referência:', error)
+
+      if (error instanceof AxiosError && error.response) {
+        return reply.status(error.response.status).send({
+          error: 'Erro na API da FIPE',
+          status: error.response.status,
+        })
+      }
+
+      return reply.status(500).send({
+        error: 'Erro interno do servidor',
+        details: error instanceof Error
+          ? error.message
+          : 'Erro desconhecido',
+      })
+    }
+  })
 }

@@ -1,9 +1,9 @@
-// src/middleware/auth.ts
 import { FastifyRequest, FastifyReply } from 'fastify'
 import jwt from 'jsonwebtoken'
+import { env } from '@/env'
 
 interface JWTPayload {
-  sub: string,        // ✅ Mudança: 'userId' → 'sub'
+  sub: string,
   email: string
   profile?: 'ADMINISTRATOR' | 'PARTNER' | 'INVESTOR'
 }
@@ -29,7 +29,7 @@ export async function authenticate(
       })
     }
 
-    const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
+    const JWT_SECRET = env.JWT_SECRET || 'your-secret-key'
 
     const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload
 

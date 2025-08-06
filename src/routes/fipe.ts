@@ -277,4 +277,208 @@ export async function fipeRoutes(app: FastifyInstance) {
       })
     }
   })
+
+  // src/routes/fipe.ts - Adicionar esta nova rota
+
+  // 🚗 Buscar informações detalhadas de um veículo específico
+  app.get('/fipe/:vehicleType/brands/:brandId/models/:modelId/years/:yearId', {
+    preHandler: [app.authenticate],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { vehicleType, brandId, modelId, yearId } = request.params as {
+      vehicleType: string
+      brandId: string
+      modelId: string
+      yearId: string
+    }
+
+    try {
+      console.log(
+        `🔍 Buscando detalhes do veículo: Tipo=${vehicleType}, ` +
+        `Marca=${brandId}, Modelo=${modelId}, Ano=${yearId}`,
+      )
+
+      // ✅ Validar tipo de veículo
+      const validTypes = ['cars', 'motorcycles', 'trucks']
+      if (!validTypes.includes(vehicleType)) {
+        return reply.status(400).send({
+          error: 'Tipo de veículo inválido',
+          validTypes,
+        })
+      }
+
+      // 🌐 Fazer requisição para API FIPE
+      const fipeUrl =
+        `${env.API_FIPE_PATH}/${vehicleType}/brands/${brandId}/models/` +
+        `${modelId}/years/${yearId}`
+
+      const response = await axios.get(fipeUrl, {
+        params: {
+          reference: env.FIPE_REFERENCE,
+        },
+      })
+
+      // 📊 Estruturar resposta
+      const vehicleData = response.data
+
+      const vehicleInfo = {
+      // ✅ Dados básicos do veículo
+        brand: vehicleData.brand,
+        model: vehicleData.model,
+        modelYear: vehicleData.modelYear,
+        fuel: vehicleData.fuel,
+        fuelAcronym: vehicleData.fuelAcronym,
+        vehicleType: vehicleData.vehicleType,
+
+        // 💰 Dados de preço
+        price: vehicleData.price,
+        codeFipe: vehicleData.codeFipe,
+        referenceMonth: vehicleData.referenceMonth,
+
+        // 📈 Histórico (se disponível)
+        priceHistory: vehicleData.priceHistory || [],
+
+        // 🔍 Metadados da consulta
+        consultedAt: new Date().toISOString(),
+        apiSource: 'FIPE Parallelum API v2',
+      }
+
+      console.log(
+        `✅ Veículo encontrado: ${vehicleData.brand} ${vehicleData.model} ` +
+        `(${vehicleData.modelYear})`,
+      )
+      console.log(`💰 Preço atual: ${vehicleData.price}`)
+
+      return reply.send({
+        success: true,
+        data: vehicleInfo,
+      })
+    } catch (error: unknown) {
+      console.error('❌ Erro ao buscar informações do veículo:', error)
+
+      // 🔍 Verificar se é um erro do Axios
+      if (axios.isAxiosError(error)) {
+        // ✅ Agora temos tipagem correta do erro do Axios
+        if (error.response?.status === 404) {
+          return reply.status(404).send({
+            error: 'Veículo não encontrado',
+            message:
+            'Combinação de marca, modelo e ano não existe na base FIPE',
+          })
+        }
+
+        if (error.response?.status === 429) {
+          return reply.status(429).send({
+            error: 'Limite de requisições excedido',
+            message: 'Aguarde alguns minutos antes de tentar novamente',
+          })
+        }
+      }
+
+      // 🔍 Para outros tipos de erro
+      const errorMessage = error instanceof Error
+        ? error.message
+        : 'Erro desconhecido'
+
+      return reply.status(500).send({
+        error: 'Erro interno do servidor',
+        message: 'Não foi possível consultar as informações do veículo',
+        details: errorMessage,
+      })
+    }
+  })
+
+  // src/routes/fipe.ts - Adicionar esta nova rota
+
+  // 🚗 Buscar modelos de veículos por marca e ano
+  app.get('/fipe/:vehicleType/brands/:brandId/years/:yearId/models', {
+    preHandler: [app.authenticate],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { vehicleType, brandId, yearId } = request.params as {
+      vehicleType: string
+      brandId: string
+      yearId: string
+    }
+
+    try {
+      console.log(
+        `🔍 Buscando modelos: Tipo=${vehicleType}, Marca=${brandId}, ` +
+        `Ano=${yearId}`)
+
+      // ✅ Validar tipo de veículo
+      const validTypes = ['cars', 'motorcycles', 'trucks']
+      if (!validTypes.includes(vehicleType)) {
+        return reply.status(400).send({
+          error: 'Tipo de veículo inválido',
+          validTypes,
+        })
+      }
+
+      // 🌐 URL com variável de ambiente
+      const fipeUrl =
+        `${env.API_FIPE_PATH}/${vehicleType}/brands/${brandId}/years/` +
+        `${yearId}/models`
+
+      // 📡 Requisição para API FIPE
+      const response = await axios.get(fipeUrl, {
+        params: {
+          reference: env.FIPE_REFERENCE,
+        },
+      })
+
+      // 📊 Processar dados dos modelos
+      const modelsData = response.data
+
+      // ✅ Validar se retornou array
+      if (!Array.isArray(modelsData)) {
+        return reply.status(404).send({
+          error: 'Nenhum modelo encontrado',
+          message: 'Não existem modelos para esta marca e ano',
+        })
+      }
+
+      // 📈 Estatísticas dos modelos
+      const stats = {
+        totalModels: modelsData.length,
+        consultedAt: new Date().toISOString(),
+        brandId,
+        year: yearId,
+        vehicleType,
+      }
+
+      console.log(
+        `✅ Encontrados ${modelsData.length} modelos para marca ${brandId} ` +
+        `no ano ${yearId}`,
+      )
+
+      return reply.send({
+        success: true,
+        data: modelsData,
+        metadata: stats,
+      })
+    } catch (error) {
+      console.error('❌ Erro ao buscar modelos por marca e ano:', error)
+
+      // 🔍 Tratar erros específicos da API FIPE
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 404) {
+          return reply.status(404).send({
+            error: 'Modelos não encontrados',
+            message: 'Não existem modelos para esta combinação de marca e ano',
+          })
+        }
+
+        if (error.response?.status === 429) {
+          return reply.status(429).send({
+            error: 'Limite de requisições excedido',
+            message: 'Aguarde alguns minutos antes de tentar novamente',
+          })
+        }
+      }
+
+      return reply.status(500).send({
+        error: 'Erro interno do servidor',
+        message: 'Não foi possível buscar os modelos',
+      })
+    }
+  })
 }

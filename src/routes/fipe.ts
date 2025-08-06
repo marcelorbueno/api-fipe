@@ -10,8 +10,8 @@ export async function fipeRoutes(app: FastifyInstance) {
       async (request: FastifyRequest, reply: FastifyReply) => {
         try {
           console.log('🔧 [DEV] Testando configurações de proxy com axios...')
-          console.log('HTTP_PROXY:', process.env.HTTP_PROXY)
-          console.log('HTTPS_PROXY:', process.env.HTTPS_PROXY)
+          console.log('HTTP_PROXY:', env.HTTP_PROXY)
+          console.log('HTTPS_PROXY:', env.HTTPS_PROXY)
 
           const response = await axios.get('https://httpbin.org/ip')
 

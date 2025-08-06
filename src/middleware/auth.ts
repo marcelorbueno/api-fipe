@@ -1,14 +1,17 @@
+// src/middleware/auth.ts
 import { FastifyRequest, FastifyReply } from 'fastify'
 import jwt from 'jsonwebtoken'
 
 interface JWTPayload {
-  userId: string
+  sub: string,        // ✅ Mudança: 'userId' → 'sub'
   email: string
   profile?: 'ADMINISTRATOR' | 'PARTNER' | 'INVESTOR'
 }
 
 export async function authenticate(
-  request: FastifyRequest, reply: FastifyReply) {
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
   try {
     const authHeader = request.headers.authorization
 
@@ -31,7 +34,7 @@ export async function authenticate(
     const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload
 
     request.user = {
-      userId: decoded.userId,
+      userId: decoded.sub,
       email: decoded.email,
       profile: decoded.profile,
     }

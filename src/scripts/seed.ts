@@ -13,11 +13,11 @@ async function main() {
       name: 'Admin BMC Car',
       num_cpf: '11111111111',
       email: 'admin@bmccar.com',
-      password: adminPassword, // ✅ Campo obrigatório adicionado
+      password: adminPassword,
       birthday: new Date('1980-01-01'),
       phone_number: '11999999999',
       avatar: null,
-      profile: UserProfile.ADMINISTRATOR, // ✅ Perfil de administrador
+      profile: UserProfile.ADMINISTRATOR,
       is_active: true,
     },
   })

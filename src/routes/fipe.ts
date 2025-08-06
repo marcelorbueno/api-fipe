@@ -118,12 +118,14 @@ export async function fipeRoutes(app: FastifyInstance) {
   // 🚙 Rota para listar modelos por marca
   app.get('/fipe/:vehicleType/brands/:brandId/models', {
     preHandler: [app.authenticate],
-  }, async (request: FastifyRequest<{
-    Params: { vehicleType: string; brandId: string }
-  }>, reply: FastifyReply) => {
+  }, async (request, reply) => {
     try {
-      const { vehicleType, brandId } = request.params
-      console.log(`🚙 Buscando modelos para marca ${brandId} do tipo ${vehicleType}`)
+      const { vehicleType, brandId } = request.params as {
+        vehicleType: string;
+        brandId: string;
+      }
+      console.log(
+        `🚙 Buscando modelos para marca ${brandId} do tipo ${vehicleType}`)
 
       // Validar tipo de veículo
       const validTypes = ['cars', 'motorcycles']
@@ -181,6 +183,89 @@ export async function fipeRoutes(app: FastifyInstance) {
         return reply.status(error.response.status).send({
           error: 'Erro na API da FIPE',
           status: error.response.status,
+        })
+      }
+
+      return reply.status(500).send({
+        error: 'Erro interno do servidor',
+        details: error instanceof Error
+          ? error.message
+          : 'Erro desconhecido',
+      })
+    }
+  })
+
+  // 📅 Rota para listar anos disponíveis de um modelo específico
+  app.get('/fipe/:vehicleType/brands/:brandId/models/:modelId/years', {
+    preHandler: [app.authenticate],
+  }, async (request, reply) => {
+    try {
+      const { vehicleType, brandId, modelId } = request.params as {
+        vehicleType: string;
+        brandId: string;
+        modelId: string;
+      }
+
+      console.log(`📅 Buscando anos para modelo ${modelId} ` +
+        `da marca ${brandId} do tipo ${vehicleType}`,
+      )
+
+      // Validar tipo de veículo
+      const validTypes = ['cars', 'motorcycles']
+      if (!validTypes.includes(vehicleType)) {
+        return reply.status(400).send({
+          error: 'Tipo de veículo inválido',
+          validTypes,
+          received: vehicleType,
+        })
+      }
+
+      // Validar IDs (devem ser números)
+      if (isNaN(Number(brandId)) || isNaN(Number(modelId))) {
+        return reply.status(400).send({
+          error: 'IDs inválidos',
+          details: 'brandId e modelId devem ser números',
+          received: { brandId, modelId },
+        })
+      }
+
+      console.log('📋 REQUEST DEBUG:', {
+        url: `${env.API_FIPE_PATH}/${vehicleType}/brands/${brandId}/models/` +
+          `${modelId}/years`,
+        params: { reference: env.FIPE_REFERENCE },
+        method: 'GET',
+      })
+
+      const response = await axios.get(
+        `${env.API_FIPE_PATH}/${vehicleType}/brands/${brandId}/models/` +
+        `${modelId}/years`,
+        {
+          params: {
+            reference: env.FIPE_REFERENCE,
+          },
+        },
+      )
+
+      console.log('📊 RESPONSE DEBUG:', {
+        status: response.status,
+        dataLength: Array.isArray(response.data)
+          ? response.data.length
+          : 'N/A',
+        firstItems: Array.isArray(response.data)
+          ? response.data.slice(0, 3)
+          : response.data,
+      })
+
+      console.log(`✅ Anos obtidos com sucesso para modelo ${modelId}`)
+      return reply.send(response.data)
+    } catch (error: unknown) {
+      console.error('❌ Erro ao buscar anos:', error)
+
+      if (error instanceof AxiosError && error.response) {
+        return reply.status(error.response.status).send({
+          error: 'Erro na API da FIPE',
+          status: error.response.status,
+          details: error.response.data || 'Dados não disponíveis',
         })
       }
 

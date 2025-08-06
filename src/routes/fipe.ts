@@ -4,37 +4,6 @@ import axios from '../config/axios'
 import { env } from '../env'
 
 export async function fipeRoutes(app: FastifyInstance) {
-  // ⚠️ Rota de teste apenas em ambiente de desenvolvimento
-  if (env.NODE_ENV === 'development') {
-    app.get('/fipe/test-connection',
-      async (request: FastifyRequest, reply: FastifyReply) => {
-        try {
-          console.log('🔧 [DEV] Testando configurações de proxy com axios...')
-          console.log('HTTP_PROXY:', env.HTTP_PROXY)
-          console.log('HTTPS_PROXY:', env.HTTPS_PROXY)
-
-          const response = await axios.get('https://httpbin.org/ip')
-
-          console.log('✅ Teste de conectividade OK:', response.data)
-          return reply.send({
-            status: 'success',
-            message: 'Conectividade com proxy OK via axios',
-            data: response.data,
-            environment: 'development',
-          })
-        } catch (error: unknown) { // ✅ TIPAR COMO unknown
-          console.error('❌ Teste de conectividade falhou:', error)
-          return reply.status(500).send({
-            error: 'Teste de conectividade falhou',
-            details: error instanceof Error
-              ? error.message
-              : 'Erro desconhecido',
-            environment: 'development',
-          })
-        }
-      })
-  }
-
   // 🚗 Rota para listar tipos de veículos disponíveis
   app.get('/fipe/vehicle-types', {
     preHandler: [app.authenticate],

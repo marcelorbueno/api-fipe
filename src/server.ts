@@ -6,6 +6,7 @@ import { fipeRoutes } from './routes/fipe'
 import { partnersRoutes } from './routes/partners'
 import { authRoutes } from './routes/auth'
 import { env } from './env'
+import { healthRoutes } from './routes/health'
 
 const PORT = env.PORT
 
@@ -23,6 +24,7 @@ async function start() {
     app.decorate('authenticate', authenticate)
 
     // Registrar rotas
+    await app.register(healthRoutes)
     await app.register(authRoutes)
     await app.register(fipeRoutes)
     await app.register(partnersRoutes)

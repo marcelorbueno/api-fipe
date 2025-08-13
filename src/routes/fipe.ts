@@ -247,8 +247,6 @@ export async function fipeRoutes(app: FastifyInstance) {
     }
   })
 
-  // src/routes/fipe.ts - Adicionar esta nova rota
-
   // 🚗 Buscar informações detalhadas de um veículo específico
   app.get('/fipe/:vehicleType/brands/:brandId/models/:modelId/years/:yearId', {
     preHandler: [app.authenticate],
@@ -355,8 +353,6 @@ export async function fipeRoutes(app: FastifyInstance) {
       })
     }
   })
-
-  // src/routes/fipe.ts - Adicionar esta nova rota
 
   // 🚗 Buscar modelos de veículos por marca e ano
   app.get('/fipe/:vehicleType/brands/:brandId/years/:yearId/models', {

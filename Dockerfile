@@ -11,6 +11,9 @@ ENV http_proxy=http://10.3.2.55:3128/ \
 
 WORKDIR /app
 
+# Instala as ferramentas de cliente PostgreSQL
+RUN apk add --no-cache postgresql-client
+
 COPY package*.json ./
 RUN npm install
 

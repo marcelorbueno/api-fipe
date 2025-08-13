@@ -1,6 +1,6 @@
+import { env } from '@/env'
 import { FastifyRequest, FastifyReply } from 'fastify'
 import jwt from 'jsonwebtoken'
-import { env } from '@/env'
 
 interface JWTPayload {
   sub: string,
@@ -29,7 +29,8 @@ export async function authenticate(
       })
     }
 
-    const JWT_SECRET = env.JWT_SECRET || 'your-secret-key'
+    const JWT_SECRET =
+      process.env.JWT_SECRET || env.JWT_SECRET || 'your-secret-key'
 
     const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload
 
@@ -38,9 +39,7 @@ export async function authenticate(
       email: decoded.email,
       profile: decoded.profile,
     }
-  } catch (error) {
-    console.error('Erro na autenticação:', error)
-
+  } catch {
     return reply.status(401).send({
       error: 'Token de acesso inválido ou expirado',
     })

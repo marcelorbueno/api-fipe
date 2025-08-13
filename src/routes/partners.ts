@@ -13,7 +13,13 @@ const getPartnerParamsSchema = z.object({
 const listPartnersQuerySchema = z.object({
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(10),
-  active: z.coerce.boolean().optional(),
+  active: z.string()
+    .optional()
+    .transform((val) => {
+      if (val === 'true') return true
+      if (val === 'false') return false
+      return undefined
+    }),
 })
 
 export async function partnersRoutes(app: FastifyInstance) {
@@ -25,9 +31,11 @@ export async function partnersRoutes(app: FastifyInstance) {
       const { page, limit, active } = listPartnersQuerySchema.parse(req.query)
 
       const skip = (page - 1) * limit
-      const whereCondition = active !== undefined
-        ? { is_active: active }
-        : {}
+      let whereCondition = {}
+
+      if (active !== undefined) {
+        whereCondition = { is_active: active }
+      }
 
       const [partners, total] = await Promise.all([
         prisma.partner.findMany({

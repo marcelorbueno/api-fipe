@@ -1,12 +1,11 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
-import { env } from '../env'
 import axios from 'axios'
 
 export async function healthRoutes(app: FastifyInstance) {
   // 🔍 Health Check - Teste de conexão
   app.get('/health', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const isProduction = env.NODE_ENV === 'production'
+      const { env } = await import('../env')
 
       // Dados básicos (sempre disponíveis)
       const healthData = {
@@ -22,7 +21,7 @@ export async function healthRoutes(app: FastifyInstance) {
       }
 
       // ⚠️ Informações detalhadas apenas em desenvolvimento
-      if (!isProduction) {
+      if (process.env.NODE_ENV !== 'production') {
         try {
           console.log('🔧 [DEV] Testando configurações de proxy...')
           console.log('HTTP_PROXY:', env.HTTP_PROXY)

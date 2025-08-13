@@ -23,3 +23,6 @@ yarn-debug.log*
 
 # TypeScript build info (caso utilize incremental)
 *.tsbuildinfo
+
+# Jest documentos
+/coverage

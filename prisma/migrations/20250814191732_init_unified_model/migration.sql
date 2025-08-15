@@ -34,22 +34,6 @@ CREATE TABLE "public"."refresh_tokens" (
 );
 
 -- CreateTable
-CREATE TABLE "public"."partners" (
-    "id" UUID NOT NULL,
-    "name" TEXT NOT NULL,
-    "num_cpf" VARCHAR(11) NOT NULL,
-    "email" TEXT NOT NULL,
-    "birthday" DATE NOT NULL,
-    "phone_number" TEXT NOT NULL,
-    "avatar" TEXT,
-    "is_active" BOOLEAN NOT NULL DEFAULT true,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "partners_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "public"."vehicles" (
     "id" UUID NOT NULL,
     "license_plate" VARCHAR(8) NOT NULL,
@@ -63,6 +47,7 @@ CREATE TABLE "public"."vehicles" (
     "observations" TEXT,
     "purchase_date" TIMESTAMP(3),
     "purchase_value" DECIMAL(12,2),
+    "is_company_vehicle" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -73,7 +58,7 @@ CREATE TABLE "public"."vehicles" (
 CREATE TABLE "public"."vehicle_ownerships" (
     "id" UUID NOT NULL,
     "vehicle_id" UUID NOT NULL,
-    "partner_id" UUID NOT NULL,
+    "user_id" UUID NOT NULL,
     "ownership_percentage" DECIMAL(5,2) NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
@@ -107,19 +92,13 @@ CREATE UNIQUE INDEX "users_email_key" ON "public"."users"("email");
 CREATE UNIQUE INDEX "refresh_tokens_token_key" ON "public"."refresh_tokens"("token");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "partners_num_cpf_key" ON "public"."partners"("num_cpf");
-
--- CreateIndex
-CREATE UNIQUE INDEX "partners_email_key" ON "public"."partners"("email");
-
--- CreateIndex
 CREATE UNIQUE INDEX "vehicles_license_plate_key" ON "public"."vehicles"("license_plate");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "vehicles_renavam_key" ON "public"."vehicles"("renavam");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "vehicle_ownerships_vehicle_id_partner_id_key" ON "public"."vehicle_ownerships"("vehicle_id", "partner_id");
+CREATE UNIQUE INDEX "vehicle_ownerships_vehicle_id_user_id_key" ON "public"."vehicle_ownerships"("vehicle_id", "user_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "fipe_cache_brand_code_model_code_year_fuel_type_vehicle_typ_key" ON "public"."fipe_cache"("brand_code", "model_code", "year", "fuel_type", "vehicle_type");
@@ -131,4 +110,4 @@ ALTER TABLE "public"."refresh_tokens" ADD CONSTRAINT "refresh_tokens_user_id_fke
 ALTER TABLE "public"."vehicle_ownerships" ADD CONSTRAINT "vehicle_ownerships_vehicle_id_fkey" FOREIGN KEY ("vehicle_id") REFERENCES "public"."vehicles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."vehicle_ownerships" ADD CONSTRAINT "vehicle_ownerships_partner_id_fkey" FOREIGN KEY ("partner_id") REFERENCES "public"."partners"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "public"."vehicle_ownerships" ADD CONSTRAINT "vehicle_ownerships_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE CASCADE;

@@ -8,28 +8,30 @@ datasource db {
 }
 
 model User {
-  id String @id @default(uuid()) @db.Uuid
-  name String
-  num_cpf String @unique @db.VarChar(11)
-  email String @unique
-  password String
-  birthday DateTime @db.Date
+  id           String      @id @default(uuid()) @db.Uuid
+  name         String
+  num_cpf      String      @unique @db.VarChar(11)
+  email        String      @unique
+  password     String
+  birthday     DateTime    @db.Date
   phone_number String
-  avatar String?
-  profile UserProfile @default(INVESTOR)
-  is_active Boolean @default(true)
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  avatar       String?
+  profile      UserProfile @default(INVESTOR)
+  is_active    Boolean     @default(true)
+  created_at   DateTime    @default(now())
+  updated_at   DateTime    @updatedAt
 
-  refresh_tokens RefreshToken[]
+  // Relacionamentos
+  refresh_tokens     RefreshToken[]
+  vehicle_ownerships VehicleOwnership[]
 
   @@map("users")
 }
 
 model RefreshToken {
-  id String @id @default(uuid()) @db.Uuid
-  token String @unique
-  user_id String @db.Uuid
+  id         String   @id @default(uuid()) @db.Uuid
+  token      String   @unique
+  user_id    String   @db.Uuid
   expires_at DateTime
   created_at DateTime @default(now())
 
@@ -38,39 +40,25 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
-model Partner {
-  id String @id @default(uuid()) @db.Uuid
-  name String
-  num_cpf String @unique @db.VarChar(11)
-  email String @unique
-  birthday DateTime @db.Date
-  phone_number String
-  avatar String?
-  is_active Boolean @default(true)
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  vehicle_ownerships VehicleOwnership[]
-
-  @@map("partners")
-}
-
 model Vehicle {
-  id String @id @default(uuid()) @db.Uuid
+  id            String @id @default(uuid()) @db.Uuid
   license_plate String @unique @db.VarChar(8)
-  renavam String @unique @db.VarChar(11)
-  
+  renavam       String @unique @db.VarChar(11)
+
   fipe_brand_code Int
   fipe_model_code Int
-  year String
-  fuel_type String
-  vehicle_type VehicleType
-  
-  color String?
-  observations String?
-  purchase_date DateTime?
-  purchase_value Decimal? @db.Decimal(12,2)
-  
+  year            String
+  fuel_type       String
+  vehicle_type    VehicleType
+
+  color          String?
+  observations   String?
+  purchase_date  DateTime?
+  purchase_value Decimal?  @db.Decimal(12, 2)
+
+  // Campo especial para veículos da empresa
+  is_company_vehicle Boolean @default(false)
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
@@ -81,33 +69,33 @@ model Vehicle {
 
 model VehicleOwnership {
   id String @id @default(uuid()) @db.Uuid
-  
-  vehicle_id String @db.Uuid
-  partner_id String @db.Uuid
-  ownership_percentage Decimal @db.Decimal(5,2)
-  
+
+  vehicle_id           String  @db.Uuid
+  user_id              String  @db.Uuid
+  ownership_percentage Decimal @db.Decimal(5, 2)
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   vehicle Vehicle @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
-  partner Partner @relation(fields: [partner_id], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
-  @@unique([vehicle_id, partner_id])
+  @@unique([vehicle_id, user_id])
   @@map("vehicle_ownerships")
 }
 
 model FipeCache {
   id String @id @default(uuid()) @db.Uuid
-  
-  brand_code Int
-  model_code Int
-  year String
-  fuel_type String
+
+  brand_code   Int
+  model_code   Int
+  year         String
+  fuel_type    String
   vehicle_type VehicleType
-  
-  fipe_value Decimal @db.Decimal(12,2)
+
+  fipe_value      Decimal @db.Decimal(12, 2)
   reference_month String
-  
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 

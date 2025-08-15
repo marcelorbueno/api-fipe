@@ -3,10 +3,11 @@ import fastifyCors from '@fastify/cors'
 import fastifyJwt from '@fastify/jwt'
 import { authenticate } from './middleware/auth'
 import { fipeRoutes } from './routes/fipe'
-import { partnersRoutes } from './routes/partners'
 import { authRoutes } from './routes/auth'
 import { env } from './env'
 import { healthRoutes } from './routes/health'
+import { usersRoutes } from './routes/users'
+import { vehiclesRoutes } from './routes/vehicles'
 
 const PORT = env.PORT
 
@@ -24,10 +25,12 @@ async function start() {
     app.decorate('authenticate', authenticate)
 
     // Registrar rotas
-    await app.register(healthRoutes)
+
     await app.register(authRoutes)
     await app.register(fipeRoutes)
-    await app.register(partnersRoutes)
+    await app.register(healthRoutes)
+    await app.register(usersRoutes)
+    await app.register(vehiclesRoutes)
 
     await app.listen({ port: Number(PORT), host: '0.0.0.0' })
     console.log(`🚀 Server listening on port ${PORT}`)

@@ -8,6 +8,7 @@ import { env } from './env'
 import { healthRoutes } from './routes/health'
 import { usersRoutes } from './routes/users'
 import { vehiclesRoutes } from './routes/vehicles'
+import { patrimonyRoutes } from './routes/patrimony'
 
 const PORT = env.PORT
 
@@ -31,6 +32,7 @@ async function start() {
     await app.register(healthRoutes)
     await app.register(usersRoutes)
     await app.register(vehiclesRoutes)
+    await app.register(patrimonyRoutes)
 
     await app.listen({ port: Number(PORT), host: '0.0.0.0' })
     console.log(`🚀 Server listening on port ${PORT}`)

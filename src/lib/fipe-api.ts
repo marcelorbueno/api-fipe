@@ -1,3 +1,4 @@
+// src/lib/fipe-api.ts - VERSÃO ATUALIZADA
 import { env } from '../env'
 
 interface FipeBrand {
@@ -31,10 +32,14 @@ export type VehicleType = 'cars' | 'motorcycles'
 
 export class FipeAPI {
   private baseURL = env.API_FIPE_PATH
+  private reference = env.FIPE_REFERENCE
 
   // Buscar marcas
   async getBrands(vehicleType: VehicleType): Promise<FipeBrand[]> {
-    const response = await fetch(`${this.baseURL}/${vehicleType}/brands`)
+    const url = `${this.baseURL}/${vehicleType}/brands`
+    const params = new URLSearchParams({ reference: this.reference })
+
+    const response = await fetch(`${url}?${params}`)
     if (!response.ok) {
       throw new Error(`Failed to fetch brands: ${response.statusText}`)
     }
@@ -47,7 +52,9 @@ export class FipeAPI {
     brandCode: number,
   ): Promise<FipeModel[]> {
     const url = `${this.baseURL}/${vehicleType}/brands/${brandCode}/models`
-    const response = await fetch(url)
+    const params = new URLSearchParams({ reference: this.reference })
+
+    const response = await fetch(`${url}?${params}`)
 
     if (!response.ok) {
       throw new Error(`Failed to fetch models: ${response.statusText}`)
@@ -63,8 +70,9 @@ export class FipeAPI {
   ): Promise<FipeYear[]> {
     const url = `${this.baseURL}/${vehicleType}/brands/` +
       `${brandCode}/models/${modelCode}/years`
+    const params = new URLSearchParams({ reference: this.reference })
 
-    const response = await fetch(url)
+    const response = await fetch(`${url}?${params}`)
 
     if (!response.ok) {
       throw new Error(`Failed to fetch years: ${response.statusText}`)
@@ -81,17 +89,41 @@ export class FipeAPI {
   ): Promise<FipeValue> {
     const url = `${this.baseURL}/${vehicleType}/brands/` +
       `${brandCode}/models/${modelCode}/years/${yearCode}`
+    const params = new URLSearchParams({ reference: this.reference })
 
-    const response = await fetch(url)
+    console.log(`🌐 Fazendo requisição FIPE: ${url}?${params}`)
+
+    const response = await fetch(`${url}?${params}`)
 
     if (!response.ok) {
       throw new Error(`Failed to fetch value: ${response.statusText}`)
     }
-    return response.json() as Promise<FipeValue>
+
+    const data = await response.json() as FipeValue
+    console.log('📊 Resposta FIPE recebida:', {
+      brand: data.brand,
+      model: data.model,
+      price: data.price,
+      fuelAcronym: data.fuelAcronym,
+    })
+
+    return data
   }
 
+  // Validar se tipo de veículo é válido
   static isValidVehicleType(type: string): type is VehicleType {
     return ['cars', 'motorcycles'].includes(type)
+  }
+
+  // Buscar referências disponíveis
+  async getReferences(): Promise<Array<{ code: number; month: string }>> {
+    const url = `${this.baseURL}/references`
+
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw new Error(`Failed to fetch references: ${response.statusText}`)
+    }
+    return response.json()
   }
 }
 

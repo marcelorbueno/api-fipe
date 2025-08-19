@@ -1,23 +1,56 @@
 import { FastifyInstance } from 'fastify'
-import { PrismaClient, VehicleType } from '@prisma/client'
+import { PrismaClient, VehicleType, UserProfile, Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { authenticate } from '../middleware/auth'
+import { vehicleEnrichmentService } from '@/services/vehicle-enrichment-service'
 
 const prisma = new PrismaClient()
 
-// Schemas de validação corrigidos
+// Interfaces para tipagem correta
+interface WhereCondition {
+  vehicle_type?: VehicleType
+  display_year?: number
+  is_company_vehicle?: boolean
+  fuel_acronym?: {
+    contains: string
+    mode: 'insensitive'
+  }
+  brand_name?: {
+    contains: string
+    mode: 'insensitive'
+  }
+  OR?: Array<{
+    license_plate?: {
+      contains: string
+      mode: 'insensitive'
+    }
+    renavam?: {
+      contains: string
+      mode: 'insensitive'
+    }
+    brand_name?: {
+      contains: string
+      mode: 'insensitive'
+    }
+    model_name?: {
+      contains: string
+      mode: 'insensitive'
+    }
+    color?: {
+      contains: string
+      mode: 'insensitive'
+    }
+  }>
+}
+
+// Schemas de validação
 const createVehicleSchema = z.object({
   license_plate: z.string().min(7).max(8),
   renavam: z.string().length(11),
   fipe_brand_code: z.number().int().positive(),
   fipe_model_code: z.number().int().positive(),
   year_id: z.string().min(1),
-  fuel_acronym: z.string().min(1).max(3),
   vehicle_type: z.enum(['cars', 'motorcycles']),
-  display_year: z.number().int().positive().optional(),
-  display_fuel: z.string().optional(),
-  brand_name: z.string().optional(),
-  model_name: z.string().optional(),
   color: z.string().optional(),
   observations: z.string().optional().nullable(),
   purchase_date: z.string().datetime().optional().nullable(),
@@ -31,7 +64,6 @@ const getVehicleParamsSchema = z.object({
   id: z.string().uuid(),
 })
 
-// Schema de listagem corrigido
 const listVehiclesQuerySchema = z.object({
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(10),
@@ -45,7 +77,6 @@ const listVehiclesQuerySchema = z.object({
       if (val === 'false') return false
       return undefined
     }),
-  // Novos filtros úteis
   fuelAcronym: z.string().optional(),
   brandName: z.string().optional(),
 })
@@ -60,7 +91,7 @@ const updateOwnershipSchema = z.object({
 })
 
 export async function vehiclesRoutes(app: FastifyInstance) {
-  // GET /vehicles - Listar veículos (CORRIGIDO)
+  // GET /vehicles - Listar veículos
   app.get('/vehicles', async (req, res) => {
     await authenticate(req, res)
 
@@ -87,26 +118,11 @@ export async function vehiclesRoutes(app: FastifyInstance) {
 
       const skip = (page - 1) * limit
 
-      // Interface corrigida para whereCondition
-      interface WhereCondition {
-        vehicle_type?: VehicleType
-        display_year?: number
-        is_company_vehicle?: boolean
-        fuel_acronym?: { contains: string; mode: 'insensitive' }
-        brand_name?: { contains: string; mode: 'insensitive' }
-        OR?: Array<{
-          license_plate?: { contains: string; mode: 'insensitive' }
-          renavam?: { contains: string; mode: 'insensitive' }
-          brand_name?: { contains: string; mode: 'insensitive' }
-          model_name?: { contains: string; mode: 'insensitive' }
-        }>
-      }
-
+      // ✅ CORREÇÃO: Tipagem específica em vez de any
       const whereCondition: WhereCondition = {}
 
-      // Aplicar filtros
       if (vehicleType) {
-        whereCondition.vehicle_type = vehicleType as VehicleType
+        whereCondition.vehicle_type = vehicleType
       }
 
       if (displayYear) {
@@ -131,17 +147,16 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         }
       }
 
-      // Busca geral por texto
+      // Busca textual em múltiplos campos
       if (search) {
         whereCondition.OR = [
           { license_plate: { contains: search, mode: 'insensitive' } },
           { renavam: { contains: search, mode: 'insensitive' } },
           { brand_name: { contains: search, mode: 'insensitive' } },
           { model_name: { contains: search, mode: 'insensitive' } },
+          { color: { contains: search, mode: 'insensitive' } },
         ]
       }
-
-      console.log('🔍 Where condition:', JSON.stringify(whereCondition, null, 2))
 
       const [vehicles, total] = await Promise.all([
         prisma.vehicle.findMany({
@@ -167,7 +182,7 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         prisma.vehicle.count({ where: whereCondition }),
       ])
 
-      console.log(`✅ Encontrados ${vehicles.length} veículos de ${total} total`)
+      const totalPages = Math.ceil(total / limit)
 
       return res.send({
         data: vehicles,
@@ -175,20 +190,13 @@ export async function vehiclesRoutes(app: FastifyInstance) {
           page,
           limit,
           total,
-          pages: Math.ceil(total / limit),
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1,
         },
-        filters: {
-          vehicleType,
-          displayYear,
-          search,
-          isCompanyVehicle,
-          fuelAcronym,
-          brandName,
-        },
+        message: `${vehicles.length} veículos encontrados`,
       })
     } catch (error) {
-      console.error('❌ Erro ao buscar veículos:', error)
-
       if (error instanceof z.ZodError) {
         return res.status(400).send({
           error: 'Parâmetros de consulta inválidos',
@@ -196,8 +204,8 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         })
       }
 
-      return res.status(400).send({
-        error: 'Erro ao buscar veículos',
+      return res.status(500).send({
+        error: 'Erro ao listar veículos',
         details: error instanceof Error
           ? error.message
           : 'Erro desconhecido',
@@ -257,18 +265,19 @@ export async function vehiclesRoutes(app: FastifyInstance) {
     }
   })
 
-  // POST /vehicles - Criar novo veículo (MELHORADO)
+  // POST /vehicles - Criar novo veículo com enriquecimento automático
   app.post('/vehicles', async (req, res) => {
     await authenticate(req, res)
 
     try {
       const data = createVehicleSchema.parse(req.body)
 
-      console.log('🚗 Criando veículo:', {
+      console.log('🚗 Criando veículo com dados FIPE:', {
         license_plate: data.license_plate,
+        fipe_brand_code: data.fipe_brand_code,
+        fipe_model_code: data.fipe_model_code,
         year_id: data.year_id,
-        fuel_acronym: data.fuel_acronym,
-        is_company_vehicle: data.is_company_vehicle,
+        vehicle_type: data.vehicle_type,
       })
 
       // Verificar se placa já existe
@@ -293,37 +302,40 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         })
       }
 
-      // Se display_year não foi fornecido, extrair do year_id
-      let displayYear = data.display_year
-      if (!displayYear && data.year_id) {
-        const yearMatch = data.year_id.match(/^(\d{4})/)
-        if (yearMatch) {
-          displayYear = parseInt(yearMatch[1])
-        }
-      }
+      // 🔍 Buscar informações enriquecidas da API FIPE
+      console.log('🌐 Buscando dados FIPE...')
+      const enrichedData = await vehicleEnrichmentService.enrichVehicleData(
+        data.vehicle_type,
+        data.fipe_brand_code,
+        data.fipe_model_code,
+        data.year_id,
+      )
 
-      // Se display_fuel não foi fornecido, converter do fuel_acronym
-      let displayFuel = data.display_fuel
-      if (!displayFuel && data.fuel_acronym) {
-        const fuelMap: Record<string, string> = {
-          G: 'Gasolina',
-          D: 'Diesel',
-          E: 'Etanol',
-          F: 'Flex',
-        }
-        displayFuel =
-          fuelMap[data.fuel_acronym.toUpperCase()] || data.fuel_acronym
-      }
-
+      // Criar veículo com dados enriquecidos
       const vehicle = await prisma.vehicle.create({
         data: {
-          ...data,
-          display_year: displayYear,
-          display_fuel: displayFuel,
+          license_plate: data.license_plate,
+          renavam: data.renavam,
+          fipe_brand_code: data.fipe_brand_code,
+          fipe_model_code: data.fipe_model_code,
+          year_id: data.year_id,
+          vehicle_type: data.vehicle_type as VehicleType,
+
+          // Dados enriquecidos da API FIPE
+          brand_name: enrichedData.brand_name,
+          model_name: enrichedData.model_name,
+          display_year: enrichedData.display_year,
+          display_fuel: enrichedData.display_fuel,
+          fuel_acronym: enrichedData.fuel_acronym,
+
+          // Dados opcionais do usuário
+          color: data.color,
+          observations: data.observations,
           purchase_date: data.purchase_date
             ? new Date(data.purchase_date)
             : null,
-          vehicle_type: data.vehicle_type as VehicleType,
+          purchase_value: data.purchase_value,
+          is_company_vehicle: data.is_company_vehicle,
         },
         include: {
           ownerships: {
@@ -341,48 +353,84 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         },
       })
 
-      // Se for veículo da empresa, automaticamente criar participações para
-      // todos os sócios
+      // 💾 Salvar dados no cache FIPE
+      await prisma.fipeCache.create({
+        data: {
+          brand_code: data.fipe_brand_code,
+          model_code: data.fipe_model_code,
+          year_id: data.year_id,
+          fuel_acronym: enrichedData.fuel_acronym,
+          vehicle_type: data.vehicle_type as VehicleType,
+          fipe_value: enrichedData.current_fipe_value,
+          brand_name: enrichedData.brand_name,
+          model_name: enrichedData.model_name,
+          model_year: enrichedData.display_year,
+          fuel_name: enrichedData.display_fuel,
+          code_fipe: enrichedData.code_fipe,
+          reference_month: enrichedData.reference_month,
+        },
+      }).catch(error => {
+        // Se já existe no cache, não é problema
+        console.log('ℹ️ Cache FIPE já existe ou erro ao salvar:', error.message)
+      })
+
+      // 🤝 Se for veículo da empresa, criar participações automáticas para
+      // sócios
       if (data.is_company_vehicle) {
         const partners = await prisma.user.findMany({
           where: {
-            profile: 'PARTNER',
+            profile: UserProfile.PARTNER,
             is_active: true,
           },
-          select: { id: true, name: true },
         })
 
         if (partners.length > 0) {
-          const ownershipPercentage = 100 / partners.length
+          const equalPercentage = 100 / partners.length
 
-          await Promise.all(
+          const ownerships = await Promise.all(
             partners.map(partner =>
               prisma.vehicleOwnership.create({
                 data: {
                   vehicle_id: vehicle.id,
                   user_id: partner.id,
-                  ownership_percentage: ownershipPercentage,
+                  ownership_percentage: equalPercentage,
+                },
+                include: {
+                  user: {
+                    select: {
+                      id: true,
+                      name: true,
+                      email: true,
+                      profile: true,
+                    },
+                  },
                 },
               }),
             ),
           )
 
-          console.log(
-            `✅ Veículo da empresa: criadas ${partners.length} participações ` +
-            `de ${ownershipPercentage.toFixed(2)}% cada`,
-          )
-        } else {
-          console.log(
-            '⚠️ Nenhum sócio ativo encontrado para criar participações ' +
-            'automáticas',
-          )
+          vehicle.ownerships = ownerships
         }
       }
 
+      console.log(
+        `✅ Veículo criado: ${enrichedData.brand_name} ` +
+        `${enrichedData.model_name}`,
+      )
+
       return res.status(201).send({
-        data: vehicle,
+        data: {
+          ...vehicle,
+          current_fipe_value: enrichedData.current_fipe_value,
+          fipe_info: {
+            code_fipe: enrichedData.code_fipe,
+            reference_month: enrichedData.reference_month,
+            price:
+              `R$ ${enrichedData.current_fipe_value.toLocaleString('pt-BR')}`,
+          },
+        },
         message: data.is_company_vehicle
-          ? 'Veículo da empresa criado com participações automáticas para ' +
+          ? 'Veículo da empresa criado com participações automáticas para' +
             'todos os sócios'
           : 'Veículo criado com sucesso',
       })
@@ -424,9 +472,9 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         return res.status(404).send({ error: 'Veículo não encontrado' })
       }
 
-      // Verificar duplicatas se placa ou renavam estão sendo alterados
+      // Verificar duplicatas
       if (data.license_plate && data.license_plate !==
-          existingVehicle.license_plate) {
+        existingVehicle.license_plate) {
         const duplicatePlate = await prisma.vehicle.findUnique({
           where: { license_plate: data.license_plate },
         })
@@ -448,38 +496,86 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         }
       }
 
-      // Atualizar campos calculados se necessário
-      const updateData = { ...data }
+      // Verificar se códigos FIPE mudaram
+      const fipeCodesChanged =
+        (data.fipe_brand_code && data.fipe_brand_code !==
+          existingVehicle.fipe_brand_code) ||
+        (data.fipe_model_code && data.fipe_model_code !==
+          existingVehicle.fipe_model_code) ||
+        (data.year_id && data.year_id !== existingVehicle.year_id) ||
+        (data.vehicle_type && data.vehicle_type !==
+          existingVehicle.vehicle_type)
 
-      if (data.year_id && !data.display_year) {
-        const yearMatch = data.year_id.match(/^(\d{4})/)
-        if (yearMatch) {
-          updateData.display_year = parseInt(yearMatch[1])
-        }
+      let enrichedData = null
+
+      // Se códigos FIPE mudaram, buscar novos dados
+      if (fipeCodesChanged) {
+        console.log('🌐 Códigos FIPE alterados, buscando novos dados...')
+
+        const brandCode =
+          data.fipe_brand_code || existingVehicle.fipe_brand_code
+        const modelCode =
+          data.fipe_model_code || existingVehicle.fipe_model_code
+        const yearId = data.year_id || existingVehicle.year_id
+        const vehicleType = data.vehicle_type || existingVehicle.vehicle_type
+
+        enrichedData = await vehicleEnrichmentService.enrichVehicleData(
+          vehicleType as 'cars' | 'motorcycles',
+          brandCode,
+          modelCode,
+          yearId,
+        )
       }
 
-      if (data.fuel_acronym && !data.display_fuel) {
-        const fuelMap: Record<string, string> = {
-          G: 'Gasolina',
-          D: 'Diesel',
-          E: 'Etanol',
-          F: 'Flex',
-        }
-        updateData.display_fuel =
-          fuelMap[data.fuel_acronym.toUpperCase()] || data.fuel_acronym
+      // ✅ CORREÇÃO FINAL: Usar tipo Prisma e Object.assign
+      const updateData: Prisma.VehicleUpdateInput = {}
+
+      // Atribuir campos básicos usando Object.assign para evitar problemas de
+      // tipo
+      Object.assign(updateData, {
+        ...(data.license_plate !== undefined &&
+          { license_plate: data.license_plate }),
+        ...(data.renavam !== undefined && { renavam: data.renavam }),
+        ...(data.fipe_brand_code !== undefined &&
+          { fipe_brand_code: data.fipe_brand_code }),
+        ...(data.fipe_model_code !== undefined &&
+          { fipe_model_code: data.fipe_model_code }),
+        ...(data.year_id !== undefined && { year_id: data.year_id }),
+        ...(data.color !== undefined && { color: data.color }),
+        ...(data.observations !== undefined &&
+          { observations: data.observations }),
+        ...(data.purchase_value !== undefined &&
+          { purchase_value: data.purchase_value }),
+        ...(data.is_company_vehicle !== undefined &&
+          { is_company_vehicle: data.is_company_vehicle }),
+      })
+
+      // Conversões específicas
+      if (data.vehicle_type !== undefined) {
+        updateData.vehicle_type = data.vehicle_type as VehicleType
       }
 
+      if (data.purchase_date !== undefined) {
+        updateData.purchase_date = data.purchase_date
+          ? new Date(data.purchase_date)
+          : null
+      }
+
+      // Dados enriquecidos (se códigos FIPE mudaram)
+      if (enrichedData) {
+        Object.assign(updateData, {
+          brand_name: enrichedData.brand_name,
+          model_name: enrichedData.model_name,
+          display_year: enrichedData.display_year,
+          display_fuel: enrichedData.display_fuel,
+          fuel_acronym: enrichedData.fuel_acronym,
+        })
+      }
+
+      // Atualizar veículo
       const updatedVehicle = await prisma.vehicle.update({
         where: { id },
-        data: {
-          ...updateData,
-          purchase_date: data.purchase_date
-            ? new Date(data.purchase_date)
-            : undefined,
-          vehicle_type: data.vehicle_type
-            ? (data.vehicle_type as VehicleType)
-            : undefined,
-        },
+        data: updateData,
         include: {
           ownerships: {
             include: {
@@ -496,11 +592,63 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         },
       })
 
+      // Atualizar cache FIPE se necessário
+      if (enrichedData) {
+        await prisma.fipeCache.upsert({
+          where: {
+            brand_code_model_code_year_id_fuel_acronym_vehicle_type: {
+              brand_code: updatedVehicle.fipe_brand_code,
+              model_code: updatedVehicle.fipe_model_code,
+              year_id: updatedVehicle.year_id,
+              fuel_acronym: enrichedData.fuel_acronym,
+              vehicle_type: updatedVehicle.vehicle_type,
+            },
+          },
+          create: {
+            brand_code: updatedVehicle.fipe_brand_code,
+            model_code: updatedVehicle.fipe_model_code,
+            year_id: updatedVehicle.year_id,
+            fuel_acronym: enrichedData.fuel_acronym,
+            vehicle_type: updatedVehicle.vehicle_type,
+            fipe_value: enrichedData.current_fipe_value,
+            brand_name: enrichedData.brand_name,
+            model_name: enrichedData.model_name,
+            model_year: enrichedData.display_year,
+            fuel_name: enrichedData.display_fuel,
+            code_fipe: enrichedData.code_fipe,
+            reference_month: enrichedData.reference_month,
+          },
+          update: {
+            fipe_value: enrichedData.current_fipe_value,
+            brand_name: enrichedData.brand_name,
+            model_name: enrichedData.model_name,
+            model_year: enrichedData.display_year,
+            fuel_name: enrichedData.display_fuel,
+            code_fipe: enrichedData.code_fipe,
+            reference_month: enrichedData.reference_month,
+            updated_at: new Date(),
+          },
+        })
+      }
+
       return res.send({
-        data: updatedVehicle,
+        data: {
+          ...updatedVehicle,
+          current_fipe_value: enrichedData?.current_fipe_value,
+          fipe_info: enrichedData
+            ? {
+                code_fipe: enrichedData.code_fipe,
+                reference_month: enrichedData.reference_month,
+                price:
+                `R$ ${enrichedData.current_fipe_value.toLocaleString('pt-BR')}`,
+              }
+            : undefined,
+        },
         message: 'Veículo atualizado com sucesso',
       })
     } catch (error) {
+      console.error('❌ Erro ao atualizar veículo:', error)
+
       if (error instanceof z.ZodError) {
         return res.status(400).send({
           error: 'Dados inválidos',
@@ -794,7 +942,7 @@ export async function vehiclesRoutes(app: FastifyInstance) {
     }
   })
 
-  // GET /vehicles/stats - Estatísticas dos veículos (MELHORADO)
+  // GET /vehicles/stats - Estatísticas dos veículos
   app.get('/vehicles/stats', async (req, res) => {
     await authenticate(req, res)
 
@@ -845,32 +993,51 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         }),
       ])
 
+      // Processar dados para formato mais legível
+      const vehiclesByTypeFormatted = vehiclesByType.reduce((acc, item) => {
+        acc[item.vehicle_type] = item._count.id
+        return acc
+      }, {} as Record<string, number>)
+
+      const vehiclesByYearFormatted = vehiclesByYear.reduce((acc, item) => {
+        if (item.display_year) {
+          acc[item.display_year] = item._count.id
+        }
+        return acc
+      }, {} as Record<number, number>)
+
+      const vehiclesByFuelFormatted = vehiclesByFuel.reduce((acc, item) => {
+        if (item.fuel_acronym) {
+          acc[item.fuel_acronym] = item._count.id
+        }
+        return acc
+      }, {} as Record<string, number>)
+
       return res.send({
         data: {
-          totalVehicles,
-          vehiclesByType: vehiclesByType.reduce((acc, item) => {
-            acc[item.vehicle_type] = item._count.id
-            return acc
-          }, {} as Record<string, number>),
-          vehiclesWithOwners,
-          vehiclesWithoutOwners,
-          companyVehicles,
-          personalVehicles,
-          vehiclesByYear: vehiclesByYear.reduce((acc, item) => {
-            if (item.display_year) {
-              acc[item.display_year] = item._count.id
-            }
-            return acc
-          }, {} as Record<number, number>),
-          vehiclesByFuel: vehiclesByFuel.reduce((acc, item) => {
-            acc[item.fuel_acronym] = item._count.id
-            return acc
-          }, {} as Record<string, number>),
+          total_vehicles: totalVehicles,
+          vehicles_with_owners: vehiclesWithOwners,
+          vehicles_without_owners: vehiclesWithoutOwners,
+          company_vehicles: companyVehicles,
+          personal_vehicles: personalVehicles,
+          vehicles_by_type: vehiclesByTypeFormatted,
+          vehicles_by_year: vehiclesByYearFormatted,
+          vehicles_by_fuel: vehiclesByFuelFormatted,
+          ownership_stats: {
+            with_owners_percentage: totalVehicles > 0
+              ? Math.round((vehiclesWithOwners / totalVehicles) * 100)
+              : 0,
+            company_percentage: totalVehicles > 0
+              ? Math.round((companyVehicles / totalVehicles) * 100)
+              : 0,
+          },
         },
+        message: 'Estatísticas de veículos calculadas',
+        calculated_at: new Date().toISOString(),
       })
     } catch (error) {
       return res.status(500).send({
-        error: 'Erro ao buscar estatísticas',
+        error: 'Erro ao buscar estatísticas dos veículos',
         details: error instanceof Error
           ? error.message
           : 'Erro desconhecido',

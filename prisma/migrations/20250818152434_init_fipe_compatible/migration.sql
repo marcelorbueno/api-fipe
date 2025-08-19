@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "public"."VehicleType" AS ENUM ('cars', 'motorcycles', 'trucks');
+CREATE TYPE "public"."VehicleType" AS ENUM ('cars', 'motorcycles');
 
 -- CreateEnum
 CREATE TYPE "public"."UserProfile" AS ENUM ('ADMINISTRATOR', 'PARTNER', 'INVESTOR');
@@ -40,9 +40,13 @@ CREATE TABLE "public"."vehicles" (
     "renavam" VARCHAR(11) NOT NULL,
     "fipe_brand_code" INTEGER NOT NULL,
     "fipe_model_code" INTEGER NOT NULL,
-    "year" TEXT NOT NULL,
-    "fuel_type" TEXT NOT NULL,
+    "year_id" TEXT NOT NULL,
+    "fuel_acronym" TEXT NOT NULL,
     "vehicle_type" "public"."VehicleType" NOT NULL,
+    "display_year" INTEGER,
+    "display_fuel" TEXT,
+    "brand_name" TEXT,
+    "model_name" TEXT,
     "color" TEXT,
     "observations" TEXT,
     "purchase_date" TIMESTAMP(3),
@@ -71,10 +75,15 @@ CREATE TABLE "public"."fipe_cache" (
     "id" UUID NOT NULL,
     "brand_code" INTEGER NOT NULL,
     "model_code" INTEGER NOT NULL,
-    "year" TEXT NOT NULL,
-    "fuel_type" TEXT NOT NULL,
+    "year_id" TEXT NOT NULL,
+    "fuel_acronym" TEXT NOT NULL,
     "vehicle_type" "public"."VehicleType" NOT NULL,
     "fipe_value" DECIMAL(12,2) NOT NULL,
+    "brand_name" TEXT,
+    "model_name" TEXT,
+    "model_year" INTEGER,
+    "fuel_name" TEXT,
+    "code_fipe" TEXT,
     "reference_month" TEXT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
@@ -101,7 +110,7 @@ CREATE UNIQUE INDEX "vehicles_renavam_key" ON "public"."vehicles"("renavam");
 CREATE UNIQUE INDEX "vehicle_ownerships_vehicle_id_user_id_key" ON "public"."vehicle_ownerships"("vehicle_id", "user_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "fipe_cache_brand_code_model_code_year_fuel_type_vehicle_typ_key" ON "public"."fipe_cache"("brand_code", "model_code", "year", "fuel_type", "vehicle_type");
+CREATE UNIQUE INDEX "fipe_cache_brand_code_model_code_year_id_fuel_acronym_vehic_key" ON "public"."fipe_cache"("brand_code", "model_code", "year_id", "fuel_acronym", "vehicle_type");
 
 -- AddForeignKey
 ALTER TABLE "public"."refresh_tokens" ADD CONSTRAINT "refresh_tokens_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE ON UPDATE CASCADE;

@@ -45,11 +45,18 @@ model Vehicle {
   license_plate String @unique @db.VarChar(8)
   renavam       String @unique @db.VarChar(11)
 
+  // Campos da API FIPE (para buscar preços)
   fipe_brand_code Int
   fipe_model_code Int
-  year            String
-  fuel_type       String
+  year_id         String // "2014-3", "2022-3" - formato da API FIPE
+  fuel_acronym    String // "D", "G", "E", "F" - formato da API FIPE
   vehicle_type    VehicleType
+
+  // Campos para exibição amigável
+  display_year Int? // 2014, 2022 - ano extraído para exibição
+  display_fuel String? // "Diesel", "Gasolina" - combustível legível
+  brand_name   String? // "Volkswagen", "Fiat" - nome da marca
+  model_name   String? // "AMAROK CD 2.0..." - nome do modelo
 
   color          String?
   observations   String?
@@ -89,24 +96,29 @@ model FipeCache {
 
   brand_code   Int
   model_code   Int
-  year         String
-  fuel_type    String
+  year_id      String // "2014-3", "2022-3" - formato da API FIPE
+  fuel_acronym String // "D", "G", "E" - formato da API FIPE
   vehicle_type VehicleType
 
+  // Dados da resposta da API FIPE
   fipe_value      Decimal @db.Decimal(12, 2)
-  reference_month String
+  brand_name      String? // Nome da marca retornado pela API
+  model_name      String? // Nome do modelo retornado pela API
+  model_year      Int? // Ano do modelo retornado pela API
+  fuel_name       String? // Nome do combustível retornado pela API
+  code_fipe       String? // Código FIPE retornado pela API
+  reference_month String // Mês de referência
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  @@unique([brand_code, model_code, year, fuel_type, vehicle_type])
+  @@unique([brand_code, model_code, year_id, fuel_acronym, vehicle_type])
   @@map("fipe_cache")
 }
 
 enum VehicleType {
   cars
   motorcycles
-  trucks
 }
 
 enum UserProfile {

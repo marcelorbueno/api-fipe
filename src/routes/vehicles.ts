@@ -1,4 +1,3 @@
-// src/routes/vehicles.ts
 import { FastifyInstance } from 'fastify'
 import { PrismaClient, VehicleType } from '@prisma/client'
 import { z } from 'zod'
@@ -6,19 +5,23 @@ import { authenticate } from '../middleware/auth'
 
 const prisma = new PrismaClient()
 
-// Schemas de validação
+// Schemas de validação corrigidos
 const createVehicleSchema = z.object({
   license_plate: z.string().min(7).max(8),
   renavam: z.string().length(11),
   fipe_brand_code: z.number().int().positive(),
   fipe_model_code: z.number().int().positive(),
-  year: z.string().regex(/^\d{4}$/),
-  fuel_type: z.string().min(1),
-  vehicle_type: z.enum(['cars', 'motorcycles', 'trucks']),
+  year_id: z.string().min(1),
+  fuel_acronym: z.string().min(1).max(3),
+  vehicle_type: z.enum(['cars', 'motorcycles']),
+  display_year: z.number().int().positive().optional(),
+  display_fuel: z.string().optional(),
+  brand_name: z.string().optional(),
+  model_name: z.string().optional(),
   color: z.string().optional(),
-  observations: z.string().optional(),
-  purchase_date: z.string().datetime().optional(),
-  purchase_value: z.number().positive().optional(),
+  observations: z.string().optional().nullable(),
+  purchase_date: z.string().datetime().optional().nullable(),
+  purchase_value: z.number().positive().optional().nullable(),
   is_company_vehicle: z.boolean().default(false),
 })
 
@@ -28,12 +31,13 @@ const getVehicleParamsSchema = z.object({
   id: z.string().uuid(),
 })
 
+// Schema de listagem corrigido
 const listVehiclesQuerySchema = z.object({
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(10),
-  vehicleType: z.enum(['cars', 'motorcycles', 'trucks']).optional(),
-  year: z.string().optional(),
-  search: z.string().optional(), // Para buscar por placa ou renavam
+  vehicleType: z.enum(['cars', 'motorcycles']).optional(),
+  displayYear: z.coerce.number().positive().optional(),
+  search: z.string().optional(),
   isCompanyVehicle: z.string()
     .optional()
     .transform((val) => {
@@ -41,6 +45,9 @@ const listVehiclesQuerySchema = z.object({
       if (val === 'false') return false
       return undefined
     }),
+  // Novos filtros úteis
+  fuelAcronym: z.string().optional(),
+  brandName: z.string().optional(),
 })
 
 const addOwnershipSchema = z.object({
@@ -53,7 +60,7 @@ const updateOwnershipSchema = z.object({
 })
 
 export async function vehiclesRoutes(app: FastifyInstance) {
-  // GET /vehicles - Listar veículos
+  // GET /vehicles - Listar veículos (CORRIGIDO)
   app.get('/vehicles', async (req, res) => {
     await authenticate(req, res)
 
@@ -62,44 +69,79 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         page,
         limit,
         vehicleType,
-        year,
+        displayYear,
         search,
         isCompanyVehicle,
+        fuelAcronym,
+        brandName,
       } = listVehiclesQuerySchema.parse(req.query)
+
+      console.log('📋 Filtros aplicados:', {
+        vehicleType,
+        displayYear,
+        search,
+        isCompanyVehicle,
+        fuelAcronym,
+        brandName,
+      })
 
       const skip = (page - 1) * limit
 
-      // Construir condições WHERE
+      // Interface corrigida para whereCondition
       interface WhereCondition {
         vehicle_type?: VehicleType
-        year?: string
+        display_year?: number
         is_company_vehicle?: boolean
+        fuel_acronym?: { contains: string; mode: 'insensitive' }
+        brand_name?: { contains: string; mode: 'insensitive' }
         OR?: Array<{
           license_plate?: { contains: string; mode: 'insensitive' }
           renavam?: { contains: string; mode: 'insensitive' }
+          brand_name?: { contains: string; mode: 'insensitive' }
+          model_name?: { contains: string; mode: 'insensitive' }
         }>
       }
 
       const whereCondition: WhereCondition = {}
 
+      // Aplicar filtros
       if (vehicleType) {
         whereCondition.vehicle_type = vehicleType as VehicleType
       }
 
-      if (year) {
-        whereCondition.year = year
+      if (displayYear) {
+        whereCondition.display_year = displayYear
       }
 
       if (isCompanyVehicle !== undefined) {
         whereCondition.is_company_vehicle = isCompanyVehicle
       }
 
+      if (fuelAcronym) {
+        whereCondition.fuel_acronym = {
+          contains: fuelAcronym,
+          mode: 'insensitive',
+        }
+      }
+
+      if (brandName) {
+        whereCondition.brand_name = {
+          contains: brandName,
+          mode: 'insensitive',
+        }
+      }
+
+      // Busca geral por texto
       if (search) {
         whereCondition.OR = [
           { license_plate: { contains: search, mode: 'insensitive' } },
           { renavam: { contains: search, mode: 'insensitive' } },
+          { brand_name: { contains: search, mode: 'insensitive' } },
+          { model_name: { contains: search, mode: 'insensitive' } },
         ]
       }
+
+      console.log('🔍 Where condition:', JSON.stringify(whereCondition, null, 2))
 
       const [vehicles, total] = await Promise.all([
         prisma.vehicle.findMany({
@@ -125,6 +167,8 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         prisma.vehicle.count({ where: whereCondition }),
       ])
 
+      console.log(`✅ Encontrados ${vehicles.length} veículos de ${total} total`)
+
       return res.send({
         data: vehicles,
         pagination: {
@@ -133,8 +177,25 @@ export async function vehiclesRoutes(app: FastifyInstance) {
           total,
           pages: Math.ceil(total / limit),
         },
+        filters: {
+          vehicleType,
+          displayYear,
+          search,
+          isCompanyVehicle,
+          fuelAcronym,
+          brandName,
+        },
       })
     } catch (error) {
+      console.error('❌ Erro ao buscar veículos:', error)
+
+      if (error instanceof z.ZodError) {
+        return res.status(400).send({
+          error: 'Parâmetros de consulta inválidos',
+          details: error.errors,
+        })
+      }
+
       return res.status(400).send({
         error: 'Erro ao buscar veículos',
         details: error instanceof Error
@@ -196,12 +257,19 @@ export async function vehiclesRoutes(app: FastifyInstance) {
     }
   })
 
-  // POST /vehicles - Criar novo veículo
+  // POST /vehicles - Criar novo veículo (MELHORADO)
   app.post('/vehicles', async (req, res) => {
     await authenticate(req, res)
 
     try {
       const data = createVehicleSchema.parse(req.body)
+
+      console.log('🚗 Criando veículo:', {
+        license_plate: data.license_plate,
+        year_id: data.year_id,
+        fuel_acronym: data.fuel_acronym,
+        is_company_vehicle: data.is_company_vehicle,
+      })
 
       // Verificar se placa já existe
       const existingVehicle = await prisma.vehicle.findUnique({
@@ -225,9 +293,33 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         })
       }
 
+      // Se display_year não foi fornecido, extrair do year_id
+      let displayYear = data.display_year
+      if (!displayYear && data.year_id) {
+        const yearMatch = data.year_id.match(/^(\d{4})/)
+        if (yearMatch) {
+          displayYear = parseInt(yearMatch[1])
+        }
+      }
+
+      // Se display_fuel não foi fornecido, converter do fuel_acronym
+      let displayFuel = data.display_fuel
+      if (!displayFuel && data.fuel_acronym) {
+        const fuelMap: Record<string, string> = {
+          G: 'Gasolina',
+          D: 'Diesel',
+          E: 'Etanol',
+          F: 'Flex',
+        }
+        displayFuel =
+          fuelMap[data.fuel_acronym.toUpperCase()] || data.fuel_acronym
+      }
+
       const vehicle = await prisma.vehicle.create({
         data: {
           ...data,
+          display_year: displayYear,
+          display_fuel: displayFuel,
           purchase_date: data.purchase_date
             ? new Date(data.purchase_date)
             : null,
@@ -257,7 +349,7 @@ export async function vehiclesRoutes(app: FastifyInstance) {
             profile: 'PARTNER',
             is_active: true,
           },
-          select: { id: true },
+          select: { id: true, name: true },
         })
 
         if (partners.length > 0) {
@@ -277,7 +369,12 @@ export async function vehiclesRoutes(app: FastifyInstance) {
 
           console.log(
             `✅ Veículo da empresa: criadas ${partners.length} participações ` +
-            `de ${ownershipPercentage}% cada`,
+            `de ${ownershipPercentage.toFixed(2)}% cada`,
+          )
+        } else {
+          console.log(
+            '⚠️ Nenhum sócio ativo encontrado para criar participações ' +
+            'automáticas',
           )
         }
       }
@@ -290,6 +387,8 @@ export async function vehiclesRoutes(app: FastifyInstance) {
           : 'Veículo criado com sucesso',
       })
     } catch (error) {
+      console.error('❌ Erro ao criar veículo:', error)
+
       if (error instanceof z.ZodError) {
         return res.status(400).send({
           error: 'Dados inválidos',
@@ -314,6 +413,8 @@ export async function vehiclesRoutes(app: FastifyInstance) {
       const { id } = getVehicleParamsSchema.parse(req.params)
       const data = updateVehicleSchema.parse(req.body)
 
+      console.log(`🔄 Atualizando veículo ${id}`)
+
       // Verificar se veículo existe
       const existingVehicle = await prisma.vehicle.findUnique({
         where: { id },
@@ -325,7 +426,7 @@ export async function vehiclesRoutes(app: FastifyInstance) {
 
       // Verificar duplicatas se placa ou renavam estão sendo alterados
       if (data.license_plate && data.license_plate !==
-        existingVehicle.license_plate) {
+          existingVehicle.license_plate) {
         const duplicatePlate = await prisma.vehicle.findUnique({
           where: { license_plate: data.license_plate },
         })
@@ -347,10 +448,31 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         }
       }
 
+      // Atualizar campos calculados se necessário
+      const updateData = { ...data }
+
+      if (data.year_id && !data.display_year) {
+        const yearMatch = data.year_id.match(/^(\d{4})/)
+        if (yearMatch) {
+          updateData.display_year = parseInt(yearMatch[1])
+        }
+      }
+
+      if (data.fuel_acronym && !data.display_fuel) {
+        const fuelMap: Record<string, string> = {
+          G: 'Gasolina',
+          D: 'Diesel',
+          E: 'Etanol',
+          F: 'Flex',
+        }
+        updateData.display_fuel =
+          fuelMap[data.fuel_acronym.toUpperCase()] || data.fuel_acronym
+      }
+
       const updatedVehicle = await prisma.vehicle.update({
         where: { id },
         data: {
-          ...data,
+          ...updateData,
           purchase_date: data.purchase_date
             ? new Date(data.purchase_date)
             : undefined,
@@ -424,6 +546,8 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         where: { id },
       })
 
+      console.log(`✅ Veículo ${existingVehicle.license_plate} deletado`)
+
       return res.send({
         message: 'Veículo deletado com sucesso',
       })
@@ -443,10 +567,12 @@ export async function vehiclesRoutes(app: FastifyInstance) {
 
     try {
       const { id } = getVehicleParamsSchema.parse(req.params)
-      const {
-        userId,
-        ownershipPercentage,
-      } = addOwnershipSchema.parse(req.body)
+      const { userId, ownershipPercentage } = addOwnershipSchema.parse(req.body)
+
+      console.log(
+        `👥 Adicionando proprietário ${userId} ao veículo ${id} com ` +
+        `${ownershipPercentage}%`,
+      )
 
       // Verificar se veículo existe
       const vehicle = await prisma.vehicle.findUnique({
@@ -517,6 +643,9 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         },
       })
 
+      console.log(
+        `✅ Proprietário ${user.name} adicionado com ${ownershipPercentage}%`)
+
       return res.status(201).send({
         data: newOwnership,
         message: 'Proprietário adicionado com sucesso',
@@ -568,8 +697,8 @@ export async function vehiclesRoutes(app: FastifyInstance) {
 
       const otherOwnershipsTotal = vehicle!.ownerships
         .filter(o => o.user_id !== userId)
-        .reduce((sum, ownership) =>
-          sum + Number(ownership.ownership_percentage), 0)
+        .reduce(
+          (sum, ownership) => sum + Number(ownership.ownership_percentage), 0)
 
       // Verificar se não ultrapassaria 100%
       if (otherOwnershipsTotal + ownershipPercentage > 100) {
@@ -665,7 +794,7 @@ export async function vehiclesRoutes(app: FastifyInstance) {
     }
   })
 
-  // GET /vehicles/stats - Estatísticas dos veículos
+  // GET /vehicles/stats - Estatísticas dos veículos (MELHORADO)
   app.get('/vehicles/stats', async (req, res) => {
     await authenticate(req, res)
 
@@ -677,6 +806,8 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         vehiclesWithoutOwners,
         companyVehicles,
         personalVehicles,
+        vehiclesByYear,
+        vehiclesByFuel,
       ] = await Promise.all([
         prisma.vehicle.count(),
         prisma.vehicle.groupBy({
@@ -703,6 +834,15 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         prisma.vehicle.count({
           where: { is_company_vehicle: false },
         }),
+        prisma.vehicle.groupBy({
+          by: ['display_year'],
+          _count: { id: true },
+          orderBy: { display_year: 'desc' },
+        }),
+        prisma.vehicle.groupBy({
+          by: ['fuel_acronym'],
+          _count: { id: true },
+        }),
       ])
 
       return res.send({
@@ -716,6 +856,16 @@ export async function vehiclesRoutes(app: FastifyInstance) {
           vehiclesWithoutOwners,
           companyVehicles,
           personalVehicles,
+          vehiclesByYear: vehiclesByYear.reduce((acc, item) => {
+            if (item.display_year) {
+              acc[item.display_year] = item._count.id
+            }
+            return acc
+          }, {} as Record<number, number>),
+          vehiclesByFuel: vehiclesByFuel.reduce((acc, item) => {
+            acc[item.fuel_acronym] = item._count.id
+            return acc
+          }, {} as Record<string, number>),
         },
       })
     } catch (error) {

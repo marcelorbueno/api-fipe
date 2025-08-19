@@ -27,7 +27,7 @@ interface FipeValue {
   fuelAcronym: string
 }
 
-export type VehicleType = 'cars' | 'motorcycles' | 'trucks'
+export type VehicleType = 'cars' | 'motorcycles'
 
 export class FipeAPI {
   private baseURL = env.API_FIPE_PATH
@@ -91,7 +91,7 @@ export class FipeAPI {
   }
 
   static isValidVehicleType(type: string): type is VehicleType {
-    return ['cars', 'motorcycles', 'trucks'].includes(type)
+    return ['cars', 'motorcycles'].includes(type)
   }
 }
 

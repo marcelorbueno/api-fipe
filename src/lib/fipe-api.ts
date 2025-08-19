@@ -1,4 +1,4 @@
-// src/lib/fipe-api.ts - VERSÃO ATUALIZADA
+import axios from '../config/axios'
 import { env } from '../env'
 
 interface FipeBrand {
@@ -34,16 +34,23 @@ export class FipeAPI {
   private baseURL = env.API_FIPE_PATH
   private reference = env.FIPE_REFERENCE
 
+  constructor() {
+    console.log(`🔗 FIPE API configurada: ${this.baseURL}`)
+    console.log(`📋 Referência: ${this.reference}`)
+  }
+
   // Buscar marcas
   async getBrands(vehicleType: VehicleType): Promise<FipeBrand[]> {
     const url = `${this.baseURL}/${vehicleType}/brands`
-    const params = new URLSearchParams({ reference: this.reference })
 
-    const response = await fetch(`${url}?${params}`)
-    if (!response.ok) {
-      throw new Error(`Failed to fetch brands: ${response.statusText}`)
-    }
-    return response.json() as Promise<FipeBrand[]>
+    console.log(`🌐 Buscando marcas: ${url}`)
+
+    const response = await axios.get(url, {
+      params: { reference: this.reference },
+    })
+
+    console.log(`✅ ${response.data.length} marcas encontradas`)
+    return response.data
   }
 
   // Buscar modelos
@@ -52,14 +59,15 @@ export class FipeAPI {
     brandCode: number,
   ): Promise<FipeModel[]> {
     const url = `${this.baseURL}/${vehicleType}/brands/${brandCode}/models`
-    const params = new URLSearchParams({ reference: this.reference })
 
-    const response = await fetch(`${url}?${params}`)
+    console.log(`🌐 Buscando modelos: ${url}`)
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch models: ${response.statusText}`)
-    }
-    return response.json() as Promise<FipeModel[]>
+    const response = await axios.get(url, {
+      params: { reference: this.reference },
+    })
+
+    console.log(`✅ ${response.data.length} modelos encontrados`)
+    return response.data
   }
 
   // Buscar anos
@@ -70,14 +78,15 @@ export class FipeAPI {
   ): Promise<FipeYear[]> {
     const url = `${this.baseURL}/${vehicleType}/brands/` +
       `${brandCode}/models/${modelCode}/years`
-    const params = new URLSearchParams({ reference: this.reference })
 
-    const response = await fetch(`${url}?${params}`)
+    console.log(`🌐 Buscando anos: ${url}`)
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch years: ${response.statusText}`)
-    }
-    return response.json() as Promise<FipeYear[]>
+    const response = await axios.get(url, {
+      params: { reference: this.reference },
+    })
+
+    console.log(`✅ ${response.data.length} anos encontrados`)
+    return response.data
   }
 
   // Buscar valor
@@ -89,25 +98,25 @@ export class FipeAPI {
   ): Promise<FipeValue> {
     const url = `${this.baseURL}/${vehicleType}/brands/` +
       `${brandCode}/models/${modelCode}/years/${yearCode}`
-    const params = new URLSearchParams({ reference: this.reference })
 
-    console.log(`🌐 Fazendo requisição FIPE: ${url}?${params}`)
+    console.log(`🌐 Buscando valor FIPE: ${url}`)
+    console.log(`📋 Parâmetros: reference=${this.reference}`)
 
-    const response = await fetch(`${url}?${params}`)
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch value: ${response.statusText}`)
-    }
-
-    const data = await response.json() as FipeValue
-    console.log('📊 Resposta FIPE recebida:', {
-      brand: data.brand,
-      model: data.model,
-      price: data.price,
-      fuelAcronym: data.fuelAcronym,
+    const response = await axios.get(url, {
+      params: { reference: this.reference },
+      timeout: 10000, // 10 segundos de timeout
     })
 
-    return data
+    console.log('📊 Resposta FIPE recebida:', {
+      brand: response.data.brand,
+      model: response.data.model,
+      price: response.data.price,
+      fuelAcronym: response.data.fuelAcronym,
+      codeFipe: response.data.codeFipe,
+      referenceMonth: response.data.referenceMonth,
+    })
+
+    return response.data
   }
 
   // Validar se tipo de veículo é válido
@@ -119,11 +128,14 @@ export class FipeAPI {
   async getReferences(): Promise<Array<{ code: number; month: string }>> {
     const url = `${this.baseURL}/references`
 
-    const response = await fetch(url)
-    if (!response.ok) {
-      throw new Error(`Failed to fetch references: ${response.statusText}`)
-    }
-    return response.json()
+    console.log(`🌐 Buscando referências: ${url}`)
+
+    const response = await axios.get(url, {
+      timeout: 10000,
+    })
+
+    console.log(`✅ ${response.data.length} referências encontradas`)
+    return response.data
   }
 }
 

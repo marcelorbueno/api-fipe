@@ -1,3 +1,4 @@
+// src/tests/setup/test-server.ts - ATUALIZADO
 import Fastify, { FastifyInstance } from 'fastify'
 import fastifyCors from '@fastify/cors'
 import fastifyJwt from '@fastify/jwt'
@@ -5,7 +6,9 @@ import { authenticate } from '../../middleware/auth'
 import { healthRoutes } from '../../routes/health'
 import { authRoutes } from '../../routes/auth'
 import { fipeRoutes } from '../../routes/fipe'
-import { partnersRoutes } from '../../routes/partners'
+import { usersRoutes } from '../../routes/users'
+import { vehiclesRoutes } from '../../routes/vehicles'
+import { patrimonyRoutes } from '../../routes/patrimony'
 
 export async function createTestServer(): Promise<FastifyInstance> {
   // Criar nova instância do Fastify para testes
@@ -27,11 +30,13 @@ export async function createTestServer(): Promise<FastifyInstance> {
     // Adicionar método authenticate
     testApp.decorate('authenticate', authenticate)
 
-    // Registrar rotas
+    // Registrar todas as rotas atualizadas
     await testApp.register(healthRoutes)
     await testApp.register(authRoutes)
     await testApp.register(fipeRoutes)
-    await testApp.register(partnersRoutes)
+    await testApp.register(usersRoutes)
+    await testApp.register(vehiclesRoutes)
+    await testApp.register(patrimonyRoutes)
 
     // Aguardar o servidor estar pronto
     await testApp.ready()
@@ -46,7 +51,8 @@ export async function createTestServer(): Promise<FastifyInstance> {
 }
 
 export async function closeTestServer(
-  server: FastifyInstance | null): Promise<void> {
+  server: FastifyInstance | null,
+): Promise<void> {
   try {
     if (server) {
       await server.close()

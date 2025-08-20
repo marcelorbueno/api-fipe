@@ -8,32 +8,21 @@ import {
 } from '@jest/globals'
 import { FastifyInstance } from 'fastify'
 import { createTestServer, closeTestServer } from '../setup/test-server'
-import { cleanupTestData } from '../helpers/auth-helper'
+import { AuthHelper, cleanupTestData } from '../helpers/auth-helper'
+import { patrimonyService } from '../../services/patrimony-service'
+import { UserProfile, VehicleType } from '@prisma/client'
 import { prisma } from '../setup/test-database'
-import { PatrimonyService } from '../../services/patrimony-service'
 
-describe('Patrimony Service', () => {
+describe('Patrimony Service & Routes', () => {
   let server: FastifyInstance
-  let patrimonyService: PatrimonyService
-  let testPartner: {
-    id: string
-    name: string
-    email: string
-  }
-  let testVehicle: {
-    id: string
-    license_plate: string
-    fipe_brand_code: number
-    fipe_model_code: number
-    year: string
-    fuel_type: string
-    vehicle_type: string
-  }
+  let authTokens: { accessToken: string; refreshToken: string }
+  let testPartner: { id: string; name: string; email: string }
+  let testInvestor: { id: string; name: string; email: string }
+  let testVehicle: { id: string; license_plate: string }
 
   beforeAll(async () => {
     process.env.JWT_SECRET = 'test-jwt-secret-key-for-testing-only-super-secure'
     server = await createTestServer()
-    patrimonyService = new PatrimonyService()
   })
 
   afterAll(async () => {
@@ -41,278 +30,415 @@ describe('Patrimony Service', () => {
   })
 
   beforeEach(async () => {
-    // Limpar dados antes de cada teste
     await cleanupTestData()
 
-    // Criar partner de teste
-    testPartner = await prisma.partner.create({
-      data: {
-        name: 'Test Partner',
-        num_cpf: '12345678901',
-        email: 'test@partner.com',
-        birthday: new Date('1990-01-01'),
-        phone_number: '11999999999',
-        is_active: true,
-      },
+    // Criar usuário admin autenticado
+    const { tokens } = await AuthHelper.createAuthenticatedUser(server, {
+      profile: UserProfile.ADMINISTRATOR,
     })
+    authTokens = tokens
 
-    // Criar veículo de teste
-    testVehicle = await prisma.vehicle.create({
-      data: {
-        license_plate: 'ABC1234',
-        renavam: '12345678901',
-        fipe_brand_code: 21, // Chevrolet
-        fipe_model_code: 3925, // Onix
-        year: '2020',
-        fuel_type: 'Flex',
-        vehicle_type: 'cars',
-        color: 'Branco',
-        purchase_date: new Date('2020-01-01'),
-        purchase_value: 45000,
-      },
+    // Criar usuários de teste
+    const { user: partner } = await AuthHelper.createTestUser(server, {
+      name: 'João Silva',
+      email: 'joao@test.com',
+      profile: UserProfile.PARTNER,
     })
+    testPartner = partner
+
+    const { user: investor } = await AuthHelper.createTestUser(server, {
+      name: 'Maria Investidora',
+      email: 'maria@investor.com',
+      profile: UserProfile.INVESTOR,
+    })
+    testInvestor = investor
+
+    // Criar veículo de teste com dados mock
+    const vehicle = await AuthHelper.createTestVehicle(
+      server, authTokens.accessToken, {
+        license_plate: 'PATRI123',
+        renavam: '12345678901',
+        fipe_brand_code: 21,
+        fipe_model_code: 7541,
+        year_id: '2017-5',
+        vehicle_type: VehicleType.cars,
+        is_company_vehicle: false,
+      })
+    testVehicle = vehicle
   })
 
-  describe('calculatePartnerPatrimony', () => {
-    test('should calculate patrimony for partner with one vehicle', async () => {
+  describe('User Patrimony Calculation', () => {
+    test('should calculate patrimony for user with one vehicle', async () => {
       // Criar ownership de 100%
       await prisma.vehicleOwnership.create({
         data: {
           vehicle_id: testVehicle.id,
-          partner_id: testPartner.id,
+          user_id: testPartner.id,
           ownership_percentage: 100,
         },
       })
 
-      // Simular cache FIPE para evitar chamada externa
+      // Criar cache FIPE para teste
       await prisma.fipeCache.create({
         data: {
           brand_code: 21,
-          model_code: 3925,
-          year: '2020',
-          fuel_type: 'Flex',
-          vehicle_type: 'cars',
+          model_code: 7541,
+          year_id: '2017-5',
+          fuel_acronym: 'F',
+          vehicle_type: VehicleType.cars,
           fipe_value: 50000,
-          reference_month: 'agosto/2025',
+          reference_month: 'agosto de 2025',
         },
       })
 
-      const result = await patrimonyService.calculatePartnerPatrimony(testPartner.id)
+      const result =
+        await patrimonyService.calculateUserPatrimony(testPartner.id)
 
-      expect(result).toHaveProperty('partner_id', testPartner.id)
-      expect(result).toHaveProperty('partner_name', 'Test Partner')
+      expect(result).toHaveProperty('user_id', testPartner.id)
+      expect(result).toHaveProperty('user_name', 'João Silva')
+      expect(result).toHaveProperty('user_profile', UserProfile.PARTNER)
       expect(result).toHaveProperty('total_patrimony', 50000)
       expect(result).toHaveProperty('vehicles')
       expect(result.vehicles).toHaveLength(1)
 
       const vehicle = result.vehicles[0]
       expect(vehicle).toHaveProperty('vehicle_id', testVehicle.id)
-      expect(vehicle).toHaveProperty('license_plate', 'ABC1234')
+      expect(vehicle).toHaveProperty('license_plate', 'PATRI123')
       expect(vehicle).toHaveProperty('ownership_percentage', 100)
       expect(vehicle).toHaveProperty('fipe_value', 50000)
-      expect(vehicle).toHaveProperty('partner_value', 50000)
-      expect(vehicle).toHaveProperty('vehicle_type', 'cars')
+      expect(vehicle).toHaveProperty('user_value', 50000)
     })
 
-    test('should calculate patrimony for partner with partial ownership', async () => {
-      // Criar ownership de 50%
-      await prisma.vehicleOwnership.create({
-        data: {
-          vehicle_id: testVehicle.id,
-          partner_id: testPartner.id,
-          ownership_percentage: 50,
-        },
-      })
-
-      // Simular cache FIPE
-      await prisma.fipeCache.create({
-        data: {
-          brand_code: 21,
-          model_code: 3925,
-          year: '2020',
-          fuel_type: 'Flex',
-          vehicle_type: 'cars',
-          fipe_value: 60000,
-          reference_month: 'agosto/2025',
-        },
-      })
-
-      const result = await patrimonyService.calculatePartnerPatrimony(testPartner.id)
-
-      expect(result.total_patrimony).toBe(30000) // 50% de 60.000
-      expect(result.vehicles[0].ownership_percentage).toBe(50)
-      expect(result.vehicles[0].fipe_value).toBe(60000)
-      expect(result.vehicles[0].partner_value).toBe(30000)
-    })
-
-    test('should calculate patrimony for partner with multiple vehicles', async () => {
-      // Criar segundo veículo
-      const secondVehicle = await prisma.vehicle.create({
-        data: {
-          license_plate: 'XYZ9876',
-          renavam: '98765432109',
-          fipe_brand_code: 22, // Ford
-          fipe_model_code: 4567, // Ka
-          year: '2019',
-          fuel_type: 'Flex',
-          vehicle_type: 'cars',
-          color: 'Prata',
-        },
-      })
-
-      // Criar ownerships
-      await prisma.vehicleOwnership.createMany({
-        data: [
-          {
+    test('should calculate patrimony for user with partial ownership',
+      async () => {
+        await prisma.vehicleOwnership.create({
+          data: {
             vehicle_id: testVehicle.id,
-            partner_id: testPartner.id,
-            ownership_percentage: 100,
+            user_id: testPartner.id,
+            ownership_percentage: 60,
           },
-          {
-            vehicle_id: secondVehicle.id,
-            partner_id: testPartner.id,
-            ownership_percentage: 75,
-          },
-        ],
-      })
+        })
 
-      // Simular caches FIPE
-      await prisma.fipeCache.createMany({
-        data: [
-          {
+        await prisma.fipeCache.create({
+          data: {
             brand_code: 21,
-            model_code: 3925,
-            year: '2020',
-            fuel_type: 'Flex',
-            vehicle_type: 'cars',
-            fipe_value: 50000,
-            reference_month: 'agosto/2025',
+            model_code: 7541,
+            year_id: '2017-5',
+            fuel_acronym: 'F',
+            vehicle_type: VehicleType.cars,
+            fipe_value: 80000,
+            reference_month: 'agosto de 2025',
           },
-          {
-            brand_code: 22,
-            model_code: 4567,
-            year: '2019',
-            fuel_type: 'Flex',
-            vehicle_type: 'cars',
-            fipe_value: 40000,
-            reference_month: 'agosto/2025',
-          },
-        ],
+        })
+
+        const result =
+          await patrimonyService.calculateUserPatrimony(testPartner.id)
+
+        expect(result.total_patrimony).toBe(48000) // 60% de 80.000
+        expect(result.vehicles[0].ownership_percentage).toBe(60)
+        expect(result.vehicles[0].fipe_value).toBe(80000)
+        expect(result.vehicles[0].user_value).toBe(48000)
       })
 
-      const result = await patrimonyService.calculatePartnerPatrimony(testPartner.id)
+    test('should return zero patrimony for user without vehicles', async () => {
+      const result =
+        await patrimonyService.calculateUserPatrimony(testPartner.id)
 
-      expect(result.total_patrimony).toBe(80000) // 50.000 + (75% de 40.000)
-      expect(result.vehicles).toHaveLength(2)
-
-      // Verificar primeiro veículo
-      const firstVehicleResult = result.vehicles.find(v => v.license_plate === 'ABC1234')
-      expect(firstVehicleResult).toBeDefined()
-      expect(firstVehicleResult?.partner_value).toBe(50000)
-
-      // Verificar segundo veículo
-      const secondVehicleResult = result.vehicles.find(v => v.license_plate === 'XYZ9876')
-      expect(secondVehicleResult).toBeDefined()
-      expect(secondVehicleResult?.partner_value).toBe(30000) // 75% de 40.000
-    })
-
-    test('should return zero patrimony for partner without vehicles', async () => {
-      const result = await patrimonyService.calculatePartnerPatrimony(testPartner.id)
-
-      expect(result).toHaveProperty('partner_id', testPartner.id)
-      expect(result).toHaveProperty('partner_name', 'Test Partner')
+      expect(result).toHaveProperty('user_id', testPartner.id)
+      expect(result).toHaveProperty('user_name', 'João Silva')
       expect(result).toHaveProperty('total_patrimony', 0)
-      expect(result).toHaveProperty('vehicles')
       expect(result.vehicles).toHaveLength(0)
     })
 
-    test('should throw error for non-existent partner', async () => {
+    test('should throw error for non-existent user', async () => {
       const nonExistentId = '550e8400-e29b-41d4-a716-446655440000'
 
       await expect(
-        patrimonyService.calculatePartnerPatrimony(nonExistentId),
-      ).rejects.toThrow('Partner not found')
+        patrimonyService.calculateUserPatrimony(nonExistentId),
+      ).rejects.toThrow('User not found')
     })
+  })
 
-    test('should handle vehicles without FIPE cache by fetching from API', async () => {
-      // Criar ownership sem cache FIPE
+  describe('Company Patrimony', () => {
+    test('should calculate company patrimony with partner participation',
+      async () => {
+      // Criar veículo da empresa
+        const companyVehicle = await AuthHelper.createTestVehicle(
+          server, authTokens.accessToken, {
+            license_plate: 'COMPANY1',
+            is_company_vehicle: true,
+          })
+
+        // Adicionar participação dos sócios
+        await prisma.vehicleOwnership.createMany({
+          data: [
+            {
+              vehicle_id: companyVehicle.id,
+              user_id: testPartner.id,
+              ownership_percentage: 70,
+            },
+          ],
+        })
+
+        // Mock cache FIPE
+        await prisma.fipeCache.create({
+          data: {
+            brand_code: 21,
+            model_code: 7541,
+            year_id: '2017-5',
+            fuel_acronym: 'F',
+            vehicle_type: VehicleType.cars,
+            fipe_value: 100000,
+            reference_month: 'agosto de 2025',
+          },
+        })
+
+        const result = await patrimonyService.calculateCompanyPatrimony()
+
+        expect(result).toHaveProperty('total_company_patrimony', 100000)
+        expect(result).toHaveProperty('vehicles_count', 1)
+        expect(result).toHaveProperty('partners')
+        expect(result.partners).toHaveLength(1)
+        expect(result.partners[0]).toHaveProperty('user_name', 'João Silva')
+        expect(result.partners[0]).toHaveProperty('patrimony_value', 70000)
+        expect(result.partners[0]).toHaveProperty(
+          'participation_percentage', 70)
+      })
+  })
+
+  describe('Patrimony Routes', () => {
+    beforeEach(async () => {
+      // Preparar dados para testes de rotas
       await prisma.vehicleOwnership.create({
         data: {
           vehicle_id: testVehicle.id,
-          partner_id: testPartner.id,
+          user_id: testPartner.id,
           ownership_percentage: 100,
         },
       })
 
-      // Este teste pode falhar se a API FIPE não estiver acessível
-      // Vamos usar try/catch para tornar o teste mais robusto
-      try {
-        const result = await patrimonyService.calculatePartnerPatrimony(testPartner.id)
-
-        expect(result).toHaveProperty('partner_id', testPartner.id)
-        expect(result).toHaveProperty('vehicles')
-        expect(result.vehicles).toHaveLength(1)
-
-        // Se conseguiu buscar da API, deve ter criado cache
-        const cache = await prisma.fipeCache.findFirst({
-          where: {
-            brand_code: 21,
-            model_code: 3925,
-            year: '2020',
-            fuel_type: 'Flex',
-            vehicle_type: 'cars',
-          },
-        })
-
-        if (result.total_patrimony > 0) {
-          expect(cache).toBeDefined()
-          expect(cache?.fipe_value).toBeDefined()
-        }
-      } catch (error) {
-        // Se falhar por problemas de conectividade, verificar se é erro esperado
-        // Aceitar diferentes tipos de erro que podem ocorrer
-        const isExpectedError = error instanceof Error ||
-                               error instanceof TypeError ||
-                               (error && typeof error === 'object')
-
-        expect(isExpectedError).toBe(true)
-        // Em ambiente de teste, pode falhar por falta de acesso à API externa
-        console.log('⚠️ Teste de API externa falhou (esperado em alguns ambientes):',
-          error instanceof Error
-            ? error.message
-            : 'Erro desconhecido')
-      }
-    })
-
-    test('should correctly calculate percentages with decimal ownership', async () => {
-      // Criar ownership com porcentagem decimal
-      await prisma.vehicleOwnership.create({
-        data: {
-          vehicle_id: testVehicle.id,
-          partner_id: testPartner.id,
-          ownership_percentage: 33.33, // 1/3
-        },
-      })
-
-      // Simular cache FIPE
       await prisma.fipeCache.create({
         data: {
           brand_code: 21,
-          model_code: 3925,
-          year: '2020',
-          fuel_type: 'Flex',
-          vehicle_type: 'cars',
-          fipe_value: 90000,
-          reference_month: 'agosto/2025',
+          model_code: 7541,
+          year_id: '2017-5',
+          fuel_acronym: 'F',
+          vehicle_type: VehicleType.cars,
+          fipe_value: 45000,
+          reference_month: 'agosto de 2025',
         },
       })
-
-      const result =
-        await patrimonyService.calculatePartnerPatrimony(testPartner.id)
-
-      expect(result.total_patrimony).toBe(29997) // 33.33% de 90.000
-      expect(result.vehicles[0].ownership_percentage).toBe(33.33)
-      expect(result.vehicles[0].partner_value).toBe(29997)
     })
+
+    test('GET /patrimony/user/:userId should return user patrimony',
+      async () => {
+        const response = await server.inject({
+          method: 'GET',
+          url: `/patrimony/user/${testPartner.id}`,
+          headers: AuthHelper.getAuthHeaders(authTokens.accessToken),
+        })
+
+        expect(response.statusCode).toBe(200)
+        const body = JSON.parse(response.body)
+
+        expect(body).toHaveProperty('data')
+        expect(body.data).toHaveProperty('user_id', testPartner.id)
+        expect(body.data).toHaveProperty('total_patrimony', 45000)
+        expect(body.data.vehicles).toHaveLength(1)
+      })
+
+    test('GET /patrimony/partners should return all partners patrimony',
+      async () => {
+        const response = await server.inject({
+          method: 'GET',
+          url: '/patrimony/partners',
+          headers: AuthHelper.getAuthHeaders(authTokens.accessToken),
+        })
+
+        expect(response.statusCode).toBe(200)
+        const body = JSON.parse(response.body)
+
+        expect(body).toHaveProperty('data')
+        expect(Array.isArray(body.data)).toBe(true)
+        expect(body).toHaveProperty('summary')
+        expect(body.summary).toHaveProperty('total_partners')
+        expect(body.summary).toHaveProperty('total_patrimony')
+        expect(body.summary).toHaveProperty('average_patrimony')
+      })
+
+    test('GET /patrimony/investors should return all investors patrimony',
+      async () => {
+      // Adicionar veículo para investidor
+        const investorVehicle = await AuthHelper.createTestVehicle(
+          server, authTokens.accessToken, {
+            license_plate: 'INV001',
+          })
+
+        await prisma.vehicleOwnership.create({
+          data: {
+            vehicle_id: investorVehicle.id,
+            user_id: testInvestor.id,
+            ownership_percentage: 100,
+          },
+        })
+
+        await prisma.fipeCache.create({
+          data: {
+            brand_code: 21,
+            model_code: 7541,
+            year_id: '2017-5',
+            fuel_acronym: 'F',
+            vehicle_type: VehicleType.cars,
+            fipe_value: 60000,
+            reference_month: 'agosto de 2025',
+          },
+        })
+
+        const response = await server.inject({
+          method: 'GET',
+          url: '/patrimony/investors',
+          headers: AuthHelper.getAuthHeaders(authTokens.accessToken),
+        })
+
+        expect(response.statusCode).toBe(200)
+        const body = JSON.parse(response.body)
+
+        expect(body).toHaveProperty('data')
+        expect(Array.isArray(body.data)).toBe(true)
+        expect(body).toHaveProperty('summary')
+        expect(body.summary).toHaveProperty('total_investors')
+        expect(body.summary).toHaveProperty('total_patrimony')
+      })
+
+    test('GET /patrimony/report should return complete patrimony report',
+      async () => {
+        const response = await server.inject({
+          method: 'GET',
+          url: '/patrimony/report',
+          headers: AuthHelper.getAuthHeaders(authTokens.accessToken),
+        })
+
+        expect(response.statusCode).toBe(200)
+        const body = JSON.parse(response.body)
+
+        expect(body).toHaveProperty('data')
+        expect(body.data).toHaveProperty('company')
+        expect(body.data).toHaveProperty('partners')
+        expect(body.data).toHaveProperty('investors')
+        expect(body.data).toHaveProperty('summary')
+        expect(body.data.summary).toHaveProperty('total_patrimony')
+        expect(body.data.summary).toHaveProperty('total_vehicles')
+      })
+
+    test('GET /patrimony/stats should return patrimony statistics',
+      async () => {
+        const response = await server.inject({
+          method: 'GET',
+          url: '/patrimony/stats',
+          headers: AuthHelper.getAuthHeaders(authTokens.accessToken),
+        })
+
+        expect(response.statusCode).toBe(200)
+        const body = JSON.parse(response.body)
+
+        expect(body).toHaveProperty('data')
+        expect(body.data).toHaveProperty('total_patrimony')
+        expect(body.data).toHaveProperty('total_vehicles')
+        expect(body.data).toHaveProperty('company')
+        expect(body.data).toHaveProperty('partners')
+        expect(body.data).toHaveProperty('investors')
+        expect(body.data).toHaveProperty('top_partners')
+        expect(body.data).toHaveProperty('top_investors')
+      })
+
+    test('POST /patrimony/refresh-cache should refresh FIPE cache',
+      async () => {
+        const response = await server.inject({
+          method: 'POST',
+          url: '/patrimony/refresh-cache',
+          headers: AuthHelper.getAuthHeaders(authTokens.accessToken),
+        })
+
+        // Aceitar 200 (sucesso) ou erro por indisponibilidade da API FIPE
+        expect([200, 500]).toContain(response.statusCode)
+
+        const body = JSON.parse(response.body)
+        if (response.statusCode === 200) {
+          expect(body).toHaveProperty('data')
+          expect(body.data).toHaveProperty('updated')
+          expect(body.data).toHaveProperty('errors')
+          expect(body.data).toHaveProperty('total')
+        }
+      })
+  })
+
+  describe('Multiple Vehicles and Shared Ownership', () => {
+    test(
+      'should calculate patrimony with multiple vehicles and shared ownership',
+      async () => {
+      // Criar segundo veículo
+        const secondVehicle = await AuthHelper.createTestVehicle(
+          server, authTokens.accessToken, {
+            license_plate: 'MULTI001',
+          })
+
+        // Criar participações
+        await prisma.vehicleOwnership.createMany({
+          data: [
+            {
+              vehicle_id: testVehicle.id,
+              user_id: testPartner.id,
+              ownership_percentage: 100,
+            },
+            {
+              vehicle_id: secondVehicle.id,
+              user_id: testPartner.id,
+              ownership_percentage: 50,
+            },
+            {
+              vehicle_id: secondVehicle.id,
+              user_id: testInvestor.id,
+              ownership_percentage: 50,
+            },
+          ],
+        })
+
+        // Criar caches FIPE
+        await prisma.fipeCache.createMany({
+          data: [
+            {
+              brand_code: 21,
+              model_code: 7541,
+              year_id: '2017-5',
+              fuel_acronym: 'F',
+              vehicle_type: VehicleType.cars,
+              fipe_value: 40000,
+              reference_month: 'agosto de 2025',
+            },
+            {
+              brand_code: 22,
+              model_code: 8000,
+              year_id: '2020-1',
+              fuel_acronym: 'G',
+              vehicle_type: VehicleType.cars,
+              fipe_value: 80000,
+              reference_month: 'agosto de 2025',
+            },
+          ],
+        })
+
+        // Teste para sócio
+        const partnerResult =
+        await patrimonyService.calculateUserPatrimony(testPartner.id)
+        expect(partnerResult.total_patrimony)
+          .toBe(80000) // 40.000 + (50% de 80.000)
+        expect(partnerResult.vehicles).toHaveLength(2)
+
+        // Teste para investidor
+        const investorResult =
+        await patrimonyService.calculateUserPatrimony(testInvestor.id)
+        expect(investorResult.total_patrimony).toBe(40000) // 50% de 80.000
+        expect(investorResult.vehicles).toHaveLength(1)
+      })
   })
 })

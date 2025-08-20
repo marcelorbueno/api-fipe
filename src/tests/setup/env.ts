@@ -1,8 +1,10 @@
 // src/tests/setup/env.ts - NOVO ARQUIVO
 import dotenv from 'dotenv'
+import path from 'path'
 
 // Carregar variáveis de ambiente para testes
-dotenv.config({ path: '.env.test' })
+const envTestPath = path.resolve(process.cwd(), '.env.test')
+dotenv.config({ path: envTestPath })
 
 // Configurações padrão para testes
 process.env.NODE_ENV = 'test'
@@ -11,8 +13,10 @@ process.env.JWT_SECRET = process.env.JWT_SECRET ||
 process.env.PORT = process.env.PORT || '3001'
 
 // Database específico para testes
-process.env.TEST_DATABASE_URL = process.env.TEST_DATABASE_URL ||
+process.env.DATABASE_URL = process.env.TEST_DATABASE_URL ||
   'postgresql://fipe:senha123@localhost:5432/fipe_test_db'
+
+console.log('🧪 Usando DATABASE_URL para testes:', process.env.DATABASE_URL)
 
 // API FIPE configurações para teste
 process.env.API_FIPE_PATH = process.env.API_FIPE_PATH || 'https://fipe.parallelum.com.br/api/v2'

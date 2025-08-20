@@ -60,7 +60,7 @@ export class AuthHelper {
       data: {
         ...userData,
         profile: profileValue,
-        password: hashedPassword,
+        password: hashedPassword, // ✅ CORRIGIDO: usar 'password' em vez de 'password_hash'
         birthday: new Date(userData.birthday),
       },
     })
@@ -97,8 +97,7 @@ export class AuthHelper {
   }
 
   /**
-   * ✅ CORREÇÃO: Criar usuário de teste sem autenticar (SEM parâmetro server
-   * extra)
+   * ✅ CORREÇÃO: Criar usuário de teste sem autenticar
    */
   static async createTestUser(
     server: FastifyInstance,
@@ -127,7 +126,7 @@ export class AuthHelper {
       data: {
         ...userData,
         profile: profileValue,
-        password: hashedPassword,
+        password: hashedPassword, // ✅ CORRIGIDO: usar 'password' em vez de 'password_hash'
         birthday: new Date(userData.birthday),
       },
     })

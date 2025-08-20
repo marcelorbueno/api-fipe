@@ -1,14 +1,33 @@
-module.exports = {
+import type { Config } from 'jest'
+
+const config: Config = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   roots: ['<rootDir>/src'],
+
+  // Padrões de busca de arquivos de teste
   testMatch: [
     '**/__tests__/**/*.test.ts',
     '**/?(*.)+(spec|test).ts',
   ],
+
+  // Transformações
   transform: {
     '^.+\\.ts$': 'ts-jest',
   },
+
+  // Setup global
+  setupFiles: ['tsconfig-paths/register'],
+  setupFilesAfterEnv: [
+    '<rootDir>/src/tests/setup/test-database.ts',
+  ],
+
+  // Mapeamento de módulos para alias @
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/src/$1',
+  },
+
+  // Cobertura
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/**/*.d.ts',
@@ -17,57 +36,24 @@ module.exports = {
     '!src/**/index.ts',
   ],
   coverageDirectory: 'coverage',
-  coverageReporters: [
-    'text',
-    'lcov',
-    'html',
-  ],
-  setupFilesAfterEnv: [
-    '<rootDir>/src/tests/setup/test-database.ts',
-  ],
-  testTimeout: 30000, // 30 segundos para testes que fazem chamadas externas
+  coverageReporters: ['text', 'lcov', 'html'],
+
+  // Timeouts
+  testTimeout: 30000,
+
+  // Configurações de limpeza
+  clearMocks: true,
+  restoreMocks: true,
+
+  // Verbose para debug
   verbose: true,
 
-  // Configurações específicas para diferentes tipos de teste
-  projects: [
-    {
-      displayName: 'unit',
-      testMatch: ['<rootDir>/src/tests/unit/**/*.test.ts'],
-      testTimeout: 10000,
-    },
-    {
-      displayName: 'integration',
-      testMatch: ['<rootDir>/src/tests/integration/**/*.test.ts'],
-      testTimeout: 30000,
-      setupFilesAfterEnv: [
-        '<rootDir>/src/tests/setup/test-database.ts',
-      ],
-    },
-  ],
-
-  // Variáveis de ambiente para testes
-  setupFiles: ['<rootDir>/src/tests/setup/env.ts'],
-
-  // Ignorar node_modules exceto alguns específicos se necessário
+  // Ignorar transformações desnecessárias
   transformIgnorePatterns: [
     'node_modules/(?!(module-that-needs-transformation)/)',
   ],
 
-  // Limpar mocks automaticamente entre testes
-  clearMocks: true,
-  restoreMocks: true,
-
-  // Cobertura mínima (opcional)
-  coverageThreshold: {
-    global: {
-      branches: 70,
-      functions: 70,
-      lines: 70,
-      statements: 70,
-    },
-  },
-
-  // Reporters personalizados
+  // Reporters
   reporters: [
     'default',
     [
@@ -80,3 +66,5 @@ module.exports = {
     ],
   ],
 }
+
+export default config

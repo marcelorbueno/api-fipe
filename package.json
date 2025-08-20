@@ -24,7 +24,8 @@
     "test:silent": "jest --silent",
     "test:bail": "jest --bail",
     "_comment_cleanup": "Limpar dados de teste",
-    "test:cleanup": "ts-node -r tsconfig-paths/register -e \"require('./src/tests/helpers/auth-helper').cleanupTestData()\""
+    "test:cleanup": "ts-node -r tsconfig-paths/register -e \"require('./src/tests/helpers/auth-helper').cleanupTestData()\"",
+    "migrate:test": "DATABASE_URL=postgresql://fipe:senha123@postgres:5432/fipe_test_db npx prisma migrate deploy"
   },
   "dependencies": {
     "@fastify/cors": "8.5.0",

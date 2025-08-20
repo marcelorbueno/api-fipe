@@ -1,11 +1,8 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
-import { PrismaClient } from '@prisma/client'
 import { z } from 'zod'
 import bcrypt from 'bcryptjs'
 import { randomUUID } from 'crypto'
-import { env } from '@/env'
-
-const prisma = new PrismaClient()
+import { prisma } from '../lib/prisma'
 
 // Interface local que sobrescreve a tipagem padrão
 interface AuthenticatedRequest extends FastifyRequest {
@@ -65,7 +62,7 @@ export async function authRoutes(app: FastifyInstance) {
           email: user.email,
           profile: user.profile,
         },
-        { expiresIn: env.JWT_ACCESS_TOKEN_EXPIRES_IN },
+        { expiresIn: process.env.JWT_ACCESS_TOKEN_EXPIRES_IN || '1h' },
       )
 
       const refreshToken = randomUUID()
@@ -76,8 +73,9 @@ export async function authRoutes(app: FastifyInstance) {
           token: refreshToken,
           user_id: user.id,
           expires_at: new Date(
-            Date.now() + env.JWT_REFRESH_TOKEN_EXPIRES_DAYS *
-            24 * 60 * 60 * 1000, // 7 dias por default
+            Date.now() + (
+              Number(process.env.JWT_REFRESH_TOKEN_EXPIRES_DAYS) || 7) *
+              24 * 60 * 60 * 1000,
           ),
         },
       })

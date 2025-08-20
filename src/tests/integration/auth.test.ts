@@ -58,6 +58,9 @@ describe('Auth Routes', () => {
       const response = await server.inject({
         method: 'POST',
         url: '/auth/login',
+        headers: {
+          'content-type': 'application/json',
+        },
         payload: {
           email: 'test@example.com',
           password: 'password123',
@@ -91,6 +94,9 @@ describe('Auth Routes', () => {
       const response = await server.inject({
         method: 'POST',
         url: '/auth/login',
+        headers: {
+          'content-type': 'application/json',
+        },
         payload: {
           email: 'invalid@example.com',
           password: 'password123',
@@ -107,6 +113,9 @@ describe('Auth Routes', () => {
       const response = await server.inject({
         method: 'POST',
         url: '/auth/login',
+        headers: {
+          'content-type': 'application/json',
+        },
         payload: {
           email: 'test@example.com',
           password: 'wrongpassword',
@@ -129,6 +138,9 @@ describe('Auth Routes', () => {
       const response = await server.inject({
         method: 'POST',
         url: '/auth/login',
+        headers: {
+          'content-type': 'application/json',
+        },
         payload: {
           email: 'test@example.com',
           password: 'password123',
@@ -145,6 +157,9 @@ describe('Auth Routes', () => {
       const response = await server.inject({
         method: 'POST',
         url: '/auth/login',
+        headers: {
+          'content-type': 'application/json',
+        },
         payload: {
           email: 'invalid-email',
           password: 'password123',
@@ -161,6 +176,9 @@ describe('Auth Routes', () => {
       const response = await server.inject({
         method: 'POST',
         url: '/auth/login',
+        headers: {
+          'content-type': 'application/json',
+        },
         payload: {
           email: 'test@example.com',
           password: '123',
@@ -180,6 +198,9 @@ describe('Auth Routes', () => {
       const loginResponse = await server.inject({
         method: 'POST',
         url: '/auth/login',
+        headers: {
+          'content-type': 'application/json',
+        },
         payload: {
           email: 'test@example.com',
           password: 'password123',
@@ -194,6 +215,9 @@ describe('Auth Routes', () => {
       const response = await server.inject({
         method: 'POST',
         url: '/auth/refresh',
+        headers: {
+          'content-type': 'application/json',
+        },
         payload: {
           refreshToken,
         },
@@ -217,6 +241,9 @@ describe('Auth Routes', () => {
       const response = await server.inject({
         method: 'POST',
         url: '/auth/refresh',
+        headers: {
+          'content-type': 'application/json',
+        },
         payload: {
           refreshToken: 'invalid-token',
         },
@@ -241,6 +268,9 @@ describe('Auth Routes', () => {
       const response = await server.inject({
         method: 'POST',
         url: '/auth/refresh',
+        headers: {
+          'content-type': 'application/json',
+        },
         payload: {
           refreshToken: 'expired-token',
         },
@@ -259,6 +289,9 @@ describe('Auth Routes', () => {
       const loginResponse = await server.inject({
         method: 'POST',
         url: '/auth/login',
+        headers: {
+          'content-type': 'application/json',
+        },
         payload: {
           email: 'test@example.com',
           password: 'password123',
@@ -273,6 +306,9 @@ describe('Auth Routes', () => {
       const response = await server.inject({
         method: 'POST',
         url: '/auth/logout',
+        headers: {
+          'content-type': 'application/json',
+        },
         payload: {
           refreshToken,
         },
@@ -294,6 +330,9 @@ describe('Auth Routes', () => {
       const response = await server.inject({
         method: 'POST',
         url: '/auth/logout',
+        headers: {
+          'content-type': 'application/json',
+        },
         payload: {
           refreshToken: 'invalid-token',
         },
@@ -314,6 +353,9 @@ describe('Auth Routes', () => {
       const loginResponse = await server.inject({
         method: 'POST',
         url: '/auth/login',
+        headers: {
+          'content-type': 'application/json',
+        },
         payload: {
           email: 'test@example.com',
           password: 'password123',

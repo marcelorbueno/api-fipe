@@ -1,296 +1,309 @@
 import { FastifyInstance } from 'fastify'
-import { UserProfile, VehicleType } from '@prisma/client'
-import { prisma } from '@/lib/prisma'
+import { prisma } from '../setup/test-database'
 import bcrypt from 'bcryptjs'
+import { UserProfile, VehicleType } from '@prisma/client'
+import { generateLicencePlate } from '../../lib/generateLicencePlate'
 
-interface CreateUserOptions {
-  name?: string
-  email?: string
-  num_cpf?: string
-  password?: string
-  profile?: UserProfile | string
-  phone_number?: string
-  birthday?: string
-  is_active?: boolean
+export interface TestUser {
+  id: string
+  name: string
+  email: string
+  password: string
+  profile: UserProfile
 }
 
-interface CreateVehicleOptions {
+export interface AuthTokens {
+  accessToken: string
+  refreshToken: string
+  user: TestUser
+}
+
+export interface TestVehicle {
+  id: string
+  license_plate: string
+  renavam: string
+  fipe_brand_code: number
+  fipe_model_code: number
+  year_id: string
+  fuel_acronym: string
+  vehicle_type: VehicleType
+  display_year?: number
+  display_fuel?: string
+  brand_name?: string
+  model_name?: string
+  color?: string
+  observations?: string
+  purchase_date?: Date
+  purchase_value?: number
+  is_company_vehicle: boolean
+}
+
+export interface CreateTestVehicleOptions {
   license_plate?: string
   renavam?: string
   fipe_brand_code?: number
   fipe_model_code?: number
   year_id?: string
+  fuel_acronym?: string
   vehicle_type?: VehicleType
+  display_year?: number
+  display_fuel?: string
+  brand_name?: string
+  model_name?: string
   color?: string
-  is_company_vehicle?: boolean
+  observations?: string
+  purchase_date?: Date
   purchase_value?: number
-  purchase_date?: string
+  is_company_vehicle?: boolean
 }
 
 export class AuthHelper {
-  /**
-   * ✅ CORREÇÃO: Criar usuário autenticado para testes
-   */
-  static async createAuthenticatedUser(
-    server: FastifyInstance,
-    options: CreateUserOptions = {},
-  ): Promise<{
-    tokens: { accessToken: string; refreshToken: string }
-    user: { id: string; name: string; email: string; profile: UserProfile }
-  }> {
-    const userData = {
-      name: options.name || 'Test User',
-      email: options.email || `test${Date.now()}@example.com`,
-      num_cpf: options.num_cpf || Math.random().toString().substring(2, 13),
-      password: options.password || 'password123',
-      profile: options.profile || UserProfile.ADMINISTRATOR,
-      phone_number: options.phone_number || '11999999999',
-      birthday: options.birthday || '1990-01-01',
-      is_active: options.is_active ?? true,
-    }
-
-    // Garantir que profile seja do tipo correto
-    const profileValue = typeof userData.profile === 'string'
-      ? UserProfile[userData.profile as keyof typeof UserProfile]
-      : userData.profile
-
-    // Criar usuário no banco
-    const hashedPassword = await bcrypt.hash(userData.password, 10)
-    const user = await prisma.user.create({
-      data: {
-        ...userData,
-        profile: profileValue,
-        password: hashedPassword,
-        birthday: new Date(userData.birthday),
-      },
-    })
-
-    // Fazer login para obter tokens
-    const loginResponse = await server.inject({
-      method: 'POST',
-      url: '/auth/login',
-      headers: { 'content-type': 'application/json' },
-      payload: {
-        email: userData.email,
-        password: userData.password,
-      },
-    })
-
-    if (loginResponse.statusCode !== 200) {
-      throw new Error(`Failed to authenticate user: ${loginResponse.body}`)
-    }
-
-    const loginBody = JSON.parse(loginResponse.body)
-
-    return {
-      tokens: {
-        accessToken: loginBody.access_token,
-        refreshToken: loginBody.refresh_token,
-      },
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        profile: user.profile,
-      },
-    }
-  }
-
-  /**
-   * ✅ CORREÇÃO: Criar usuário de teste sem autenticar
-   */
   static async createTestUser(
-    server: FastifyInstance,
-    options: CreateUserOptions = {},
-  ): Promise<{
-    user: { id: string; name: string; email: string; profile: UserProfile }
-  }> {
-    const userData = {
-      name: options.name || 'Test User',
-      email: options.email || `test${Date.now()}@example.com`,
-      num_cpf: options.num_cpf || Math.random().toString().substring(2, 13),
-      password: options.password || 'password123',
-      profile: options.profile || UserProfile.PARTNER,
-      phone_number: options.phone_number || '11999999999',
-      birthday: options.birthday || '1990-01-01',
-      is_active: options.is_active ?? true,
+    serverOrOverrides?: FastifyInstance | Partial<TestUser>,
+    overrides: Partial<TestUser> = {},
+  ): Promise<{ user: TestUser }> {
+    // Se o primeiro parâmetro for um FastifyInstance, ignore-o e use o segundo
+    // parâmetro
+    let finalOverrides: Partial<TestUser> = {}
+
+    if (serverOrOverrides && typeof serverOrOverrides === 'object' &&
+      !('inject' in serverOrOverrides)) {
+      // É um Partial<TestUser>
+      finalOverrides = serverOrOverrides as Partial<TestUser>
+    } else {
+      // O primeiro parâmetro é um server, usar o segundo parâmetro
+      finalOverrides = overrides
     }
 
-    // Garantir que profile seja do tipo correto
-    const profileValue = typeof userData.profile === 'string'
-      ? UserProfile[userData.profile as keyof typeof UserProfile]
-      : userData.profile
+    const defaultUser = {
+      name: 'Test User',
+      num_cpf: Math.random().toString().substring(2, 13), // CPF único
+      email: `test${Math.random().toString(36).substring(7)}@example.com`,
+      password: 'password123',
+      birthday: new Date('1990-01-01'),
+      phone_number: '11999999999',
+      profile: UserProfile.ADMINISTRATOR,
+      is_active: true,
+      ...finalOverrides,
+    }
 
-    const hashedPassword = await bcrypt.hash(userData.password, 10)
+    const hashedPassword = await bcrypt.hash(defaultUser.password, 10)
+
     const user = await prisma.user.create({
       data: {
-        ...userData,
-        profile: profileValue,
+        ...defaultUser,
         password: hashedPassword,
-        birthday: new Date(userData.birthday),
       },
     })
 
-    return {
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        profile: user.profile,
-      },
+    const testUser: TestUser = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      password: defaultUser.password, // Retorna a senha não hasheada
+      profile: user.profile,
     }
+
+    return { user: testUser }
   }
 
-  /**
-   * Criar veículo de teste (com mock da API FIPE)
-   */
-  static async createTestVehicle(
-    server: FastifyInstance,
-    accessToken: string,
-    options: CreateVehicleOptions = {},
-  ): Promise<{ id: string; license_plate: string }> {
-    const vehicleData = {
-      license_plate: options.license_plate ||
-        `TEST${Date.now().toString().slice(-3)}`,
-      renavam: options.renavam || Math.random().toString().slice(2, 13),
-      fipe_brand_code: options.fipe_brand_code || 21,
-      fipe_model_code: options.fipe_model_code || 7541,
-      year_id: options.year_id || '2017-5',
-      vehicle_type: options.vehicle_type || VehicleType.cars,
-      color: options.color || 'Branco',
-      is_company_vehicle: options.is_company_vehicle || false,
-      purchase_value: options.purchase_value || 35000,
-      purchase_date: options.purchase_date || '2023-01-01T00:00:00.000Z',
-    }
-
-    // Criar cache FIPE mock antes de criar o veículo
-    await prisma.fipeCache.upsert({
-      where: {
-        brand_code_model_code_year_id_fuel_acronym_vehicle_type: {
-          brand_code: vehicleData.fipe_brand_code,
-          model_code: vehicleData.fipe_model_code,
-          year_id: vehicleData.year_id,
-          fuel_acronym: 'F',
-          vehicle_type: vehicleData.vehicle_type,
-        },
-      },
-      create: {
-        brand_code: vehicleData.fipe_brand_code,
-        model_code: vehicleData.fipe_model_code,
-        year_id: vehicleData.year_id,
-        fuel_acronym: 'F',
-        vehicle_type: vehicleData.vehicle_type,
-        fipe_value: 43807,
-        brand_name: 'Fiat',
-        model_name: 'MOBI LIKE ON 1.0 Fire Flex 5p.',
-        model_year: 2017,
-        fuel_name: 'Flex',
-        code_fipe: '001462-1',
-        reference_month: 'agosto de 2025',
-      },
-      update: {
-        fipe_value: 43807,
-        updated_at: new Date(),
-      },
-    })
-
-    // Tentar criar veículo via API
+  static async loginUser(
+    server: FastifyInstance, email: string, password: string):
+    Promise<AuthTokens> {
     const response = await server.inject({
       method: 'POST',
-      url: '/vehicles',
-      headers: {
-        authorization: `Bearer ${accessToken}`,
-        'content-type': 'application/json',
-      },
-      payload: vehicleData,
+      url: '/auth/login',
+      payload: { email, password },
     })
 
-    if (response.statusCode === 201) {
-      const body = JSON.parse(response.body)
-      return {
-        id: body.data.id,
-        license_plate: body.data.license_plate,
-      }
+    if (response.statusCode !== 200) {
+      throw new Error(`Login failed: ${response.body}`)
     }
 
-    // Se falhar via API, criar diretamente no banco (fallback para testes)
-    const vehicle = await prisma.vehicle.create({
-      data: {
-        ...vehicleData,
-        brand_name: 'Fiat',
-        model_name: 'MOBI LIKE ON 1.0 Fire Flex 5p.',
-        display_year: 2017,
-        display_fuel: 'Flex',
-        fuel_acronym: 'F',
-        purchase_date: new Date(vehicleData.purchase_date),
-      },
-    })
+    const body = JSON.parse(response.body)
 
     return {
-      id: vehicle.id,
-      license_plate: vehicle.license_plate,
+      accessToken: body.access_token,
+      refreshToken: body.refresh_token,
+      user: body.user,
     }
   }
 
-  /**
-   * Obter headers de autenticação
-   */
-  static getAuthHeaders(accessToken: string): Record<string, string> {
+  static async createAuthenticatedUser(
+    server: FastifyInstance,
+    overrides: Partial<TestUser> = {},
+  ): Promise<{ user: TestUser; tokens: AuthTokens }> {
+    const { user } = await this.createTestUser(server, overrides)
+    const tokens = await this.loginUser(server, user.email, user.password)
+
+    return { user, tokens }
+  }
+
+  static getAuthHeaders(accessToken: string) {
     return {
       authorization: `Bearer ${accessToken}`,
     }
   }
 
-  /**
-   * Criar mock de dados FIPE
-   */
-  static async createFipeCache(
-    brandCode: number = 21,
-    modelCode: number = 7541,
-    yearId: string = '2017-5',
-    vehicleType: VehicleType = VehicleType.cars,
-    fipeValue: number = 43807,
-  ): Promise<void> {
-    await prisma.fipeCache.upsert({
-      where: {
-        brand_code_model_code_year_id_fuel_acronym_vehicle_type: {
-          brand_code: brandCode,
-          model_code: modelCode,
-          year_id: yearId,
-          fuel_acronym: 'F',
-          vehicle_type: vehicleType,
-        },
-      },
-      create: {
-        brand_code: brandCode,
-        model_code: modelCode,
-        year_id: yearId,
-        fuel_acronym: 'F',
-        vehicle_type: vehicleType,
-        fipe_value: fipeValue,
-        brand_name: 'Test Brand',
-        model_name: 'Test Model',
-        model_year: parseInt(yearId.split('-')[0]),
-        fuel_name: 'Flex',
-        code_fipe: '000000-0',
-        reference_month: 'agosto de 2025',
-      },
-      update: {
-        fipe_value: fipeValue,
-        updated_at: new Date(),
-      },
-    })
+  // Nova função para criar veículos de teste
+  static async createTestVehicle(
+    serverOrOptions?: FastifyInstance | CreateTestVehicleOptions,
+    accessTokenOrOptions?: string | CreateTestVehicleOptions,
+    options: CreateTestVehicleOptions = {},
+  ): Promise<TestVehicle> {
+    // Se o primeiro parâmetro for um objeto (CreateTestVehicleOptions), usar
+    // diretamente
+    let finalOptions: CreateTestVehicleOptions = {}
+
+    if (serverOrOptions && typeof serverOrOptions === 'object' &&
+      !('inject' in serverOrOptions)) {
+      // É um CreateTestVehicleOptions
+      finalOptions = serverOrOptions as CreateTestVehicleOptions
+    } else if (accessTokenOrOptions &&
+      typeof accessTokenOrOptions === 'object') {
+      // accessTokenOrOptions é CreateTestVehicleOptions
+      finalOptions = accessTokenOrOptions as CreateTestVehicleOptions
+    } else {
+      // Usar options passado como terceiro parâmetro
+      finalOptions = options
+    }
+
+    // Usar timestamp + random para garantir uniqueness absoluta, mas preferir
+    // generateLicencePlate quando possível
+    const timestamp = Date.now()
+    const shortTimestamp = timestamp.toString().slice(-6) // Últimos 6 dígitos
+
+    // Limitar tamanhos conforme schema do banco
+    // license_plate: VARCHAR(8) - máximo 8 caracteres
+    const licensePlate = finalOptions.license_plate || generateLicencePlate()
+
+    // renavam: VARCHAR(11) - máximo 11 caracteres
+    const renavam = finalOptions.renavam || shortTimestamp.padStart(11, '0')
+
+    const vehicleData = {
+      license_plate: licensePlate,
+      renavam,
+      fipe_brand_code: finalOptions.fipe_brand_code ?? 21,
+      fipe_model_code: finalOptions.fipe_model_code ?? 4828,
+      year_id: finalOptions.year_id ?? '2020-1',
+      fuel_acronym: finalOptions.fuel_acronym ?? 'G',
+      vehicle_type: finalOptions.vehicle_type ?? VehicleType.cars,
+      display_year: finalOptions.display_year ?? 2020,
+      display_fuel: finalOptions.display_fuel ?? 'Gasolina',
+      brand_name: finalOptions.brand_name ?? 'Fiat',
+      model_name: finalOptions.model_name ?? 'Uno Mille 1.0',
+      color: finalOptions.color ?? 'Branco',
+      observations: finalOptions.observations ?? 'Veículo de teste',
+      purchase_date: finalOptions.purchase_date ?? new Date('2020-01-01'),
+      purchase_value: finalOptions.purchase_value ?? 35000.00,
+      is_company_vehicle: finalOptions.is_company_vehicle ?? false,
+    }
+
+    try {
+      const vehicle = await prisma.vehicle.create({
+        data: vehicleData,
+      })
+
+      return {
+        id: vehicle.id,
+        license_plate: vehicle.license_plate,
+        renavam: vehicle.renavam,
+        fipe_brand_code: vehicle.fipe_brand_code,
+        fipe_model_code: vehicle.fipe_model_code,
+        year_id: vehicle.year_id,
+        fuel_acronym: vehicle.fuel_acronym,
+        vehicle_type: vehicle.vehicle_type,
+        display_year: vehicle.display_year || undefined,
+        display_fuel: vehicle.display_fuel || undefined,
+        brand_name: vehicle.brand_name || undefined,
+        model_name: vehicle.model_name || undefined,
+        color: vehicle.color || undefined,
+        observations: vehicle.observations || undefined,
+        purchase_date: vehicle.purchase_date || undefined,
+        purchase_value: vehicle.purchase_value
+          ? Number(vehicle.purchase_value)
+          : undefined,
+        is_company_vehicle: vehicle.is_company_vehicle,
+      }
+    } catch (error: unknown) {
+      // Se ainda houver conflito, tentar com placa ainda mais única
+      if (error && typeof error === 'object' && 'code' in error &&
+        error.code === 'P2002') {
+        const errorWithMeta = error as { meta?: { target?: string[] } }
+        if (errorWithMeta.meta?.target?.includes('license_plate')) {
+          const fallbackTimestamp = Date.now().toString().slice(-5)
+          const uniqueLicensePlate = `X${fallbackTimestamp}`.substring(0, 8)
+          const uniqueRenavam = fallbackTimestamp.padStart(11, '1')
+
+          const retryVehicleData = {
+            ...vehicleData,
+            license_plate: uniqueLicensePlate,
+            renavam: uniqueRenavam,
+          }
+
+          const vehicle = await prisma.vehicle.create({
+            data: retryVehicleData,
+          })
+
+          return {
+            id: vehicle.id,
+            license_plate: vehicle.license_plate,
+            renavam: vehicle.renavam,
+            fipe_brand_code: vehicle.fipe_brand_code,
+            fipe_model_code: vehicle.fipe_model_code,
+            year_id: vehicle.year_id,
+            fuel_acronym: vehicle.fuel_acronym,
+            vehicle_type: vehicle.vehicle_type,
+            display_year: vehicle.display_year || undefined,
+            display_fuel: vehicle.display_fuel || undefined,
+            brand_name: vehicle.brand_name || undefined,
+            model_name: vehicle.model_name || undefined,
+            color: vehicle.color || undefined,
+            observations: vehicle.observations || undefined,
+            purchase_date: vehicle.purchase_date || undefined,
+            purchase_value: vehicle.purchase_value
+              ? Number(vehicle.purchase_value)
+              : undefined,
+            is_company_vehicle: vehicle.is_company_vehicle,
+          }
+        }
+      }
+
+      throw error
+    }
   }
 }
 
-/**
- * Limpar dados de teste
- */
-export async function cleanupTestData(): Promise<void> {
-  // Ordem importante para respeitar foreign keys
-  await prisma.vehicleOwnership.deleteMany()
-  await prisma.fipeCache.deleteMany()
-  await prisma.vehicle.deleteMany()
-  await prisma.refreshToken.deleteMany()
-  await prisma.user.deleteMany()
+// Funções independentes para compatibilidade
+export async function createTestUser(
+  server: FastifyInstance,
+  overrides: Partial<TestUser> = {},
+): Promise<{ user: TestUser }> {
+  return AuthHelper.createTestUser(server, overrides)
+}
+
+// Função independente para criar veículos de teste (compatibilidade)
+export async function createTestVehicle(
+  server: FastifyInstance,
+  accessToken: string,
+  options: CreateTestVehicleOptions = {},
+): Promise<TestVehicle> {
+  return AuthHelper.createTestVehicle(server, accessToken, options)
+}
+
+// Função helper para limpar dados de teste
+export async function cleanupTestData() {
+  try {
+    // Ordem importante: limpar dependências primeiro
+    await prisma.refreshToken.deleteMany()
+    await prisma.vehicleOwnership.deleteMany()
+    await prisma.vehicle.deleteMany()
+    await prisma.user.deleteMany()
+    await prisma.fipeCache.deleteMany()
+
+    console.log('✅ Dados de teste limpos com sucesso')
+  } catch (error) {
+    console.error('❌ Erro ao limpar dados de teste:', error)
+    throw error
+  }
 }

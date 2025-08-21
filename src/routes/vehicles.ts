@@ -3,6 +3,7 @@ import { PrismaClient, VehicleType, UserProfile, Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { authenticate } from '../middleware/auth'
 import { vehicleEnrichmentService } from '@/services/vehicle-enrichment-service'
+import { formatOwnershipResponse } from '@/lib/formatters'
 
 const prisma = new PrismaClient()
 
@@ -795,7 +796,7 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         `✅ Proprietário ${user.name} adicionado com ${ownershipPercentage}%`)
 
       return res.status(201).send({
-        data: newOwnership,
+        data: formatOwnershipResponse(newOwnership),
         message: 'Proprietário adicionado com sucesso',
       })
     } catch (error) {
@@ -879,7 +880,7 @@ export async function vehiclesRoutes(app: FastifyInstance) {
       })
 
       return res.send({
-        data: updatedOwnership,
+        data: formatOwnershipResponse(updatedOwnership),
         message: 'Participação atualizada com sucesso',
       })
     } catch (error) {

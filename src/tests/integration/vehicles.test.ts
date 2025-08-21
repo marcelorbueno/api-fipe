@@ -29,13 +29,20 @@ describe('Vehicles Routes', () => {
   })
 
   beforeEach(async () => {
+    // Garantir limpeza completa antes de cada teste
     await cleanupTestData()
+
     // Recriar usuário se necessário
     const { tokens } = await AuthHelper.createAuthenticatedUser(server)
     authTokens = tokens
   })
 
   describe('GET /vehicles', () => {
+    beforeEach(async () => {
+    // Limpar todos os dados antes de cada teste
+      await cleanupTestData()
+    })
+
     test('should return empty list when no vehicles exist', async () => {
       const response = await server.inject({
         method: 'GET',
@@ -214,6 +221,11 @@ describe('Vehicles Routes', () => {
   })
 
   describe('Vehicle Ownership Management', () => {
+    beforeEach(async () => {
+      // Garantir limpeza completa antes de cada teste
+      await cleanupTestData()
+    })
+
     let vehicleId: string
 
     beforeEach(async () => {
@@ -229,7 +241,7 @@ describe('Vehicles Routes', () => {
       // Criar outro usuário para ser proprietário
       const { user: otherUser } = await AuthHelper.createTestUser(server, {
         email: 'owner@test.com',
-        profile: UserProfile.PARTNER, // ✅ CORRIGIDO: usar enum em vez de string
+        profile: UserProfile.PARTNER,
       })
 
       const ownershipData = {

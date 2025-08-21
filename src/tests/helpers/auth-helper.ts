@@ -108,7 +108,7 @@ export class AuthHelper {
     const userData = {
       name: options.name || 'Test User',
       email: options.email || `test${Date.now()}@example.com`,
-      num_cpf: options.num_cpf || '12345678901',
+      num_cpf: options.num_cpf || Math.random().toString().substring(2, 13),
       password: options.password || 'password123',
       profile: options.profile || UserProfile.PARTNER,
       phone_number: options.phone_number || '11999999999',

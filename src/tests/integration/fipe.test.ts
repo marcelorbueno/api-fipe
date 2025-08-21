@@ -9,7 +9,7 @@ import {
 import { FastifyInstance } from 'fastify'
 import { createTestServer, closeTestServer } from '../setup/test-server'
 import { AuthHelper } from '../helpers/auth-helper'
-import { prisma } from '../../lib/prisma'
+import { prisma } from '@/lib/prisma'
 
 describe('FIPE Routes', () => {
   let server: FastifyInstance

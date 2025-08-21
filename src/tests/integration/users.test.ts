@@ -8,8 +8,9 @@ import {
 } from '@jest/globals'
 import { FastifyInstance } from 'fastify'
 import { createTestServer, closeTestServer } from '../setup/test-server'
-import { AuthHelper, cleanupTestData } from '../helpers/auth-helper'
+import { AuthHelper } from '../helpers/auth-helper'
 import { UserProfile } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 
 describe('Users Routes', () => {
   let server: FastifyInstance
@@ -31,7 +32,10 @@ describe('Users Routes', () => {
   })
 
   beforeEach(async () => {
-    await cleanupTestData()
+    // Limpar dados antes de cada teste
+    await prisma.refreshToken.deleteMany()
+    await prisma.user.deleteMany()
+
     // Recriar usuário autenticado se necessário
     const { tokens } = await AuthHelper.createAuthenticatedUser(server, {
       profile: UserProfile.ADMINISTRATOR,

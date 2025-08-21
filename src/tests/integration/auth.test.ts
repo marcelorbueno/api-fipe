@@ -8,9 +8,9 @@ import {
 } from '@jest/globals'
 import { FastifyInstance } from 'fastify'
 import { createTestServer, closeTestServer } from '../setup/test-server'
-import { prisma } from '../setup/test-database'
 import bcrypt from 'bcryptjs'
 import { UserProfile } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 
 describe('Auth Routes', () => {
   let server: FastifyInstance

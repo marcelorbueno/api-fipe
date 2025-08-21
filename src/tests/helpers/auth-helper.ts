@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify'
 import { UserProfile, VehicleType } from '@prisma/client'
-import { prisma } from '../setup/test-database'
+import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 
 interface CreateUserOptions {
@@ -41,7 +41,7 @@ export class AuthHelper {
     const userData = {
       name: options.name || 'Test User',
       email: options.email || `test${Date.now()}@example.com`,
-      num_cpf: options.num_cpf || '12345678901',
+      num_cpf: options.num_cpf || Math.random().toString().substring(2, 13),
       password: options.password || 'password123',
       profile: options.profile || UserProfile.ADMINISTRATOR,
       phone_number: options.phone_number || '11999999999',
@@ -60,7 +60,7 @@ export class AuthHelper {
       data: {
         ...userData,
         profile: profileValue,
-        password: hashedPassword, // ✅ CORRIGIDO: usar 'password' em vez de 'password_hash'
+        password: hashedPassword,
         birthday: new Date(userData.birthday),
       },
     })
@@ -126,7 +126,7 @@ export class AuthHelper {
       data: {
         ...userData,
         profile: profileValue,
-        password: hashedPassword, // ✅ CORRIGIDO: usar 'password' em vez de 'password_hash'
+        password: hashedPassword,
         birthday: new Date(userData.birthday),
       },
     })

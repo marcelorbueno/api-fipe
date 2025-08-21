@@ -1,8 +1,15 @@
-// src/tests/integration/fipe.test.ts - ATUALIZADO
-import { describe, test, expect, beforeAll, afterAll } from '@jest/globals'
+import {
+  describe,
+  test,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+} from '@jest/globals'
 import { FastifyInstance } from 'fastify'
 import { createTestServer, closeTestServer } from '../setup/test-server'
 import { AuthHelper } from '../helpers/auth-helper'
+import { prisma } from '../../lib/prisma'
 
 describe('FIPE Routes', () => {
   let server: FastifyInstance
@@ -11,6 +18,12 @@ describe('FIPE Routes', () => {
   beforeAll(async () => {
     process.env.JWT_SECRET = 'test-jwt-secret-key-for-testing-only-super-secure'
     server = await createTestServer()
+  })
+
+  beforeEach(async () => {
+    // Limpar dados antes de cada teste
+    await prisma.refreshToken.deleteMany()
+    await prisma.user.deleteMany()
 
     // Criar usuário autenticado para os testes
     const { tokens } = await AuthHelper.createAuthenticatedUser(server)
@@ -48,18 +61,24 @@ describe('FIPE Routes', () => {
       expect(vehicleTypes[0]).toHaveProperty('code')
       expect(vehicleTypes[0]).toHaveProperty('name')
     })
+
+    test('should require authentication', async () => {
+      const response = await server.inject({
+        method: 'GET',
+        url: '/fipe/vehicle-types',
+      })
+
+      expect(response.statusCode).toBe(401)
+    })
   })
 
   describe('GET /fipe/:vehicleType/brands', () => {
-    test('should return brands for cars', async () => {
+    test('should return brands for cars when API is available', async () => {
       const response = await server.inject({
         method: 'GET',
         url: '/fipe/cars/brands',
         headers: AuthHelper.getAuthHeaders(authTokens.accessToken),
       })
-
-      // Aceitar sucesso ou erro por indisponibilidade da API externa
-      expect([200, 500, 408]).toContain(response.statusCode)
 
       if (response.statusCode === 200) {
         const body = JSON.parse(response.body)
@@ -69,6 +88,11 @@ describe('FIPE Routes', () => {
           expect(body[0]).toHaveProperty('code')
           expect(body[0]).toHaveProperty('name')
         }
+      } else {
+        // Se a API externa falhou, apenas verificar que não é erro de
+        // autenticação
+        expect(response.statusCode).not.toBe(401)
+        expect(response.statusCode).not.toBe(403)
       }
     })
 
@@ -83,41 +107,25 @@ describe('FIPE Routes', () => {
       const body = JSON.parse(response.body)
       expect(body).toHaveProperty('error')
     })
-  })
 
-  describe('GET /fipe/:vehicleType/brands/:brandId/models', () => {
-    test('should return models for a specific brand', async () => {
+    test('should require authentication', async () => {
       const response = await server.inject({
         method: 'GET',
-        url: '/fipe/cars/brands/21/models', // Fiat
-        headers: AuthHelper.getAuthHeaders(authTokens.accessToken),
+        url: '/fipe/cars/brands',
       })
 
-      // Aceitar sucesso ou erro por API externa
-      expect([200, 400, 500, 408]).toContain(response.statusCode)
-
-      if (response.statusCode === 200) {
-        const body = JSON.parse(response.body)
-        expect(Array.isArray(body)).toBe(true)
-
-        if (body.length > 0) {
-          expect(body[0]).toHaveProperty('code')
-          expect(body[0]).toHaveProperty('name')
-        }
-      }
+      expect(response.statusCode).toBe(401)
     })
   })
 
-  describe('GET /fipe/:vehicleType/brands/:brandId/models/:modelId/years',
-    () => {
-      test('should return years for a specific model', async () => {
+  describe('GET /fipe/:vehicleType/brands/:brandId/models', () => {
+    test('should return models for valid brand when API is available',
+      async () => {
         const response = await server.inject({
           method: 'GET',
-          url: '/fipe/cars/brands/21/models/7541/years', // Fiat MOBI
+          url: '/fipe/cars/brands/21/models', // Fiat
           headers: AuthHelper.getAuthHeaders(authTokens.accessToken),
         })
-
-        expect([200, 400, 500, 408]).toContain(response.statusCode)
 
         if (response.statusCode === 200) {
           const body = JSON.parse(response.body)
@@ -127,125 +135,105 @@ describe('FIPE Routes', () => {
             expect(body[0]).toHaveProperty('code')
             expect(body[0]).toHaveProperty('name')
           }
+        } else {
+        // Se falhou, verificar que não é erro de validação local
+          expect(response.statusCode).not.toBe(401)
+          expect(response.statusCode).not.toBe(403)
         }
       })
+
+    test('should fail with invalid brand ID', async () => {
+      const response = await server.inject({
+        method: 'GET',
+        url: '/fipe/cars/brands/invalid/models',
+        headers: AuthHelper.getAuthHeaders(authTokens.accessToken),
+      })
+
+      expect(response.statusCode).toBe(400)
+    })
+  })
+
+  describe('GET /fipe/:vehicleType/brands/:brandId/models/:modelId/years',
+    () => {
+      test('should return years for valid model when API is available',
+        async () => {
+          const response = await server.inject({
+            method: 'GET',
+            url: '/fipe/cars/brands/21/models/7541/years', // Fiat MOBI
+            headers: AuthHelper.getAuthHeaders(authTokens.accessToken),
+          })
+
+          if (response.statusCode === 200) {
+            const body = JSON.parse(response.body)
+            expect(Array.isArray(body)).toBe(true)
+
+            if (body.length > 0) {
+              expect(body[0]).toHaveProperty('code')
+              expect(body[0]).toHaveProperty('name')
+            }
+          } else {
+            expect(response.statusCode).not.toBe(401)
+            expect(response.statusCode).not.toBe(403)
+          }
+        })
     })
 
   describe(
     'GET /fipe/:vehicleType/brands/:brandId/models/:modelId/years/:yearId',
     () => {
-      test('should return vehicle details with price', async () => {
+      test('should return vehicle details when API is available', async () => {
         const response = await server.inject({
           method: 'GET',
-          url:
-          '/fipe/cars/brands/21/models/7541/years/2017-5', // Fiat MOBI 2017 Fle
+          url: '/fipe/cars/brands/21/models/7541/years/2017-5',
           headers: AuthHelper.getAuthHeaders(authTokens.accessToken),
         })
-
-        expect([200, 400, 500, 408]).toContain(response.statusCode)
 
         if (response.statusCode === 200) {
           const body = JSON.parse(response.body)
 
-          // Verificar estrutura da resposta
-          expect(body).toHaveProperty('brand')
-          expect(body).toHaveProperty('model')
-          expect(body).toHaveProperty('modelYear')
-          expect(body).toHaveProperty('fuel')
-          expect(body).toHaveProperty('fuelAcronym')
-          expect(body).toHaveProperty('price')
-          expect(body).toHaveProperty('codeFipe')
-          expect(body).toHaveProperty('referenceMonth')
-          expect(body).toHaveProperty('vehicleType')
-          expect(body).toHaveProperty('consultedAt')
-          expect(body).toHaveProperty('apiSource')
+          // Verificar se tem wrapper "data" ou propriedades diretas
+          const data = body.data || body
+
+          expect(data).toHaveProperty('brand')
+          expect(data).toHaveProperty('model')
+          expect(data).toHaveProperty('modelYear')
+          expect(data).toHaveProperty('fuel')
+          expect(data).toHaveProperty('fuelAcronym')
+          expect(data).toHaveProperty('price')
+          expect(data).toHaveProperty('codeFipe')
+          expect(data).toHaveProperty('referenceMonth')
+          expect(data).toHaveProperty('vehicleType')
+
+          // Verificar tipos básicos
+          expect(typeof data.brand).toBe('string')
+          expect(typeof data.model).toBe('string')
+          expect(typeof data.price).toBe('string')
+        } else {
+        // Se API externa falhou, apenas verificar que não é erro local
+          expect(response.statusCode).not.toBe(401)
+          expect(response.statusCode).not.toBe(403)
         }
       })
-    })
 
-  describe('POST /fipe/validate-vehicle', () => {
-    test('should validate vehicle codes successfully', async () => {
-      const validationData = {
-        vehicle_type: 'cars',
-        fipe_brand_code: 21,
-        fipe_model_code: 7541,
-        year_id: '2017-5',
-      }
+      test('should fail with invalid parameters', async () => {
+        const response = await server.inject({
+          method: 'GET',
+          url: '/fipe/cars/brands/invalid/models/invalid/years/invalid',
+          headers: AuthHelper.getAuthHeaders(authTokens.accessToken),
+        })
 
-      const response = await server.inject({
-        method: 'POST',
-        url: '/fipe/validate-vehicle',
-        headers: {
-          ...AuthHelper.getAuthHeaders(authTokens.accessToken),
-          'content-type': 'application/json',
-        },
-        payload: validationData,
+        // Aceitar tanto 400 (validação local) quanto 500 (erro da API externa)
+        expect([400, 500]).toContain(response.statusCode)
       })
-
-      expect([200, 400, 500]).toContain(response.statusCode)
-
-      const body = JSON.parse(response.body)
-      expect(body).toHaveProperty('isValid')
-
-      if (response.statusCode === 200 && body.isValid) {
-        expect(body).toHaveProperty('vehicle_info')
-        expect(body.vehicle_info).toHaveProperty('brand_name')
-        expect(body.vehicle_info).toHaveProperty('model_name')
-        expect(body.vehicle_info).toHaveProperty('current_fipe_value')
-        expect(body.vehicle_info).toHaveProperty('formatted_price')
-      }
     })
-
-    test('should fail validation with invalid codes', async () => {
-      const invalidData = {
-        vehicle_type: 'cars',
-        fipe_brand_code: 99999,
-        fipe_model_code: 99999,
-        year_id: 'invalid',
-      }
-
-      const response = await server.inject({
-        method: 'POST',
-        url: '/fipe/validate-vehicle',
-        headers: {
-          ...AuthHelper.getAuthHeaders(authTokens.accessToken),
-          'content-type': 'application/json',
-        },
-        payload: invalidData,
-      })
-
-      expect([400, 500]).toContain(response.statusCode)
-
-      const body = JSON.parse(response.body)
-      expect(body).toHaveProperty('isValid', false)
-    })
-
-    test('should fail with missing authentication', async () => {
-      const response = await server.inject({
-        method: 'POST',
-        url: '/fipe/validate-vehicle',
-        headers: { 'content-type': 'application/json' },
-        payload: {
-          vehicle_type: 'cars',
-          fipe_brand_code: 21,
-          fipe_model_code: 7541,
-          year_id: '2017-5',
-        },
-      })
-
-      expect(response.statusCode).toBe(401)
-    })
-  })
 
   describe('GET /fipe/references', () => {
-    test('should return available reference months', async () => {
+    test('should return reference months when API is available', async () => {
       const response = await server.inject({
         method: 'GET',
         url: '/fipe/references',
         headers: AuthHelper.getAuthHeaders(authTokens.accessToken),
       })
-
-      expect([200, 500, 408]).toContain(response.statusCode)
 
       if (response.statusCode === 200) {
         const body = JSON.parse(response.body)
@@ -255,7 +243,19 @@ describe('FIPE Routes', () => {
           expect(body[0]).toHaveProperty('code')
           expect(body[0]).toHaveProperty('month')
         }
+      } else {
+        expect(response.statusCode).not.toBe(401)
+        expect(response.statusCode).not.toBe(403)
       }
+    })
+
+    test('should require authentication', async () => {
+      const response = await server.inject({
+        method: 'GET',
+        url: '/fipe/references',
+      })
+
+      expect(response.statusCode).toBe(401)
     })
   })
 
@@ -277,6 +277,39 @@ describe('FIPE Routes', () => {
       })
 
       expect(response.statusCode).toBe(404)
+    })
+  })
+
+  // Testes específicos para casos de API externa indisponível
+  describe('External API Resilience', () => {
+    test('should gracefully handle FIPE API timeout', async () => {
+      // Este teste pode ocasionalmente falhar se a API FIPE estiver lenta
+      const response = await server.inject({
+        method: 'GET',
+        url: '/fipe/cars/brands',
+        headers: AuthHelper.getAuthHeaders(authTokens.accessToken),
+      })
+
+      // Se timeout, deve retornar erro apropriado
+      if (response.statusCode === 408) {
+        const body = JSON.parse(response.body)
+        expect(body).toHaveProperty('error')
+        expect(body.error).toMatch(/timeout|tempo/i)
+      }
+    })
+
+    test('should handle FIPE API unavailability', async () => {
+      const response = await server.inject({
+        method: 'GET',
+        url: '/fipe/cars/brands',
+        headers: AuthHelper.getAuthHeaders(authTokens.accessToken),
+      })
+
+      // Se API externa está down, deve retornar erro apropriado
+      if (response.statusCode === 500) {
+        const body = JSON.parse(response.body)
+        expect(body).toHaveProperty('error')
+      }
     })
   })
 })

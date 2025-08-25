@@ -11,6 +11,7 @@ async function main() {
 
   // Criar usuário administrador
   console.log('👤 Criando usuário administrador...')
+
   const adminPassword = await bcrypt.hash('admin123', 10)
   const adminUser = await prisma.user.create({
     data: {
@@ -27,8 +28,6 @@ async function main() {
   })
 
   console.log(`✅ Admin criado: ${adminUser.name} (${adminUser.email})`)
-
-  // Resumo final
   console.log('\n🎉 Seed executado com sucesso!')
 }
 

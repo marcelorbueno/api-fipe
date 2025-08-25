@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify'
-import { prisma } from '../setup/test-database'
+import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { UserProfile, VehicleType } from '@prisma/client'
 import { generateLicencePlate } from '../../lib/generateLicencePlate'

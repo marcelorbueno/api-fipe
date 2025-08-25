@@ -20,6 +20,7 @@ const config: Config = {
   setupFiles: ['tsconfig-paths/register'],
   setupFilesAfterEnv: [
     '<rootDir>/src/tests/setup/test-database.ts',
+    '<rootDir>/src/tests/setup/jest.setup.ts', // Adiciona setup p/ memory leaks
   ],
 
   // Mapeamento de módulos para alias @
@@ -38,22 +39,41 @@ const config: Config = {
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
 
-  // Timeouts
-  testTimeout: 30000,
+  // Timeouts - Aumentado para resolver problemas de API externa
+  testTimeout: 60000, // 60 segundos (antes era 30s)
+
+  // Configurações para evitar memory leaks e melhorar estabilidade
+  maxWorkers: 1, // Execução sequencial para evitar conflitos
+  forceExit: true, // Força saída após testes
+  detectOpenHandles: true, // Detecta handles não fechados
+  detectLeaks: false, // Desabilita detecção de memory leaks (pode ser instável)
 
   // Configurações de limpeza
   clearMocks: true,
   restoreMocks: true,
+  resetMocks: false, // Evita resetar mocks entre testes
 
   // Verbose para debug
   verbose: true,
+
+  // Configurações de execução
+  bail: false, // Continue mesmo com falhas (não pare no primeiro erro)
+  slowTestThreshold: 30, // Marcar testes > 30s como lentos
 
   // Ignorar transformações desnecessárias
   transformIgnorePatterns: [
     'node_modules/(?!(module-that-needs-transformation)/)',
   ],
 
-  // Reporters
+  // Configurações específicas para ts-jest
+  globals: {
+    'ts-jest': {
+      useESM: false,
+      isolatedModules: true, // Melhora performance
+    },
+  },
+
+  // Reporters - Manter seus reporters personalizados
   reporters: [
     'default',
     [
@@ -65,6 +85,10 @@ const config: Config = {
       },
     ],
   ],
+
+  // Configurações adicionais para estabilidade
+  workerIdleMemoryLimit: '512MB', // Limite de memória por worker
+  logHeapUsage: false, // Desabilitar logs de heap para reduzir noise
 }
 
 export default config

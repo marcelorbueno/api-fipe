@@ -1,4 +1,3 @@
-// src/routes/users.ts
 import { FastifyInstance } from 'fastify'
 import { PrismaClient, UserProfile } from '@prisma/client'
 import { z } from 'zod'
@@ -7,20 +6,28 @@ import { authenticate } from '../middleware/auth'
 
 const prisma = new PrismaClient()
 
-// Schemas de validação
+// Schemas de validação com nomes em camelCase
 const createUserSchema = z.object({
-  name: z.string().min(2),
-  num_cpf: z.string().length(11),
+  name: z.string().min(2).max(255),
+  num_cpf: z.string().length(11).regex(/^\d+$/, {
+    message: 'CPF deve conter apenas números',
+  }),
   email: z.string().email(),
   password: z.string().min(6),
-  birthday: z.string().date(),
-  phone_number: z.string().min(10),
+  birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'Data de nascimento deve estar no formato YYYY-MM-DD',
+  }),
+  phone_number: z.string().min(10).max(15),
   avatar: z.string().url().optional().nullable(),
-  profile: z.enum(['ADMINISTRATOR', 'PARTNER', 'INVESTOR']),
+  profile: z.enum(['ADMINISTRATOR', 'PARTNER', 'INVESTOR']).default('INVESTOR'),
+  is_active: z.boolean().default(true),
 })
 
-const updateUserSchema = createUserSchema.partial().omit({ password: true })
+const updateUserSchema = createUserSchema.partial().omit({
+  password: true, // Senha deve ser alterada em endpoint separado
+})
 
+// Schema com camelCase
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(6),
   newPassword: z.string().min(6),
@@ -30,18 +37,19 @@ const getUserParamsSchema = z.object({
   id: z.string().uuid(),
 })
 
+// Schema com camelCase mas mapeamento correto
 const listUsersQuerySchema = z.object({
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(10),
   profile: z.enum(['ADMINISTRATOR', 'PARTNER', 'INVESTOR']).optional(),
-  active: z.string()
+  isActive: z.string()
     .optional()
     .transform((val) => {
       if (val === 'true') return true
       if (val === 'false') return false
       return undefined
     }),
-  search: z.string().optional(), // Buscar por nome, email ou CPF
+  search: z.string().optional(),
 })
 
 export async function usersRoutes(app: FastifyInstance) {
@@ -50,153 +58,139 @@ export async function usersRoutes(app: FastifyInstance) {
     await authenticate(req, res)
 
     try {
+      // Destructuring com camelCase
+      const queryParams = listUsersQuerySchema.parse(req.query)
       const {
         page,
         limit,
         profile,
-        active,
         search,
-      } = listUsersQuerySchema.parse(req.query)
+      } = queryParams
+
+      // Mapear isActive para is_active do banco
+      const isActive = queryParams.isActive
+
+      console.log('Filtros aplicados:', {
+        profile,
+        isActive,
+        search,
+      })
 
       const skip = (page - 1) * limit
 
+      // Interface para whereCondition
       interface WhereCondition {
         profile?: UserProfile
         is_active?: boolean
         OR?: Array<{
           name?: { contains: string; mode: 'insensitive' }
           email?: { contains: string; mode: 'insensitive' }
-          num_cpf?: { contains: string }
+          num_cpf?: { contains: string; mode: 'insensitive' }
         }>
       }
 
       const whereCondition: WhereCondition = {}
 
+      // Aplicar filtros
       if (profile) {
-        whereCondition.profile = profile
+        whereCondition.profile = profile as UserProfile
       }
 
-      if (active !== undefined) {
-        whereCondition.is_active = active
+      // Usar is_active do banco de dados
+      if (isActive !== undefined) {
+        whereCondition.is_active = isActive
       }
 
+      // Filtro de busca em múltiplos campos
       if (search) {
         whereCondition.OR = [
-          { name: { contains: search, mode: 'insensitive' } },
-          { email: { contains: search, mode: 'insensitive' } },
-          { num_cpf: { contains: search } },
+          {
+            name: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          },
+          {
+            email: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          },
+          {
+            num_cpf: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          },
         ]
       }
 
-      const [users, total] = await Promise.all([
+      // Buscar usuários com paginação
+      const [users, totalCount] = await Promise.all([
         prisma.user.findMany({
           where: whereCondition,
           skip,
           take: limit,
-          orderBy: [
-            { profile: 'asc' },
-            { name: 'asc' },
-          ],
           select: {
             id: true,
             name: true,
-            email: true,
             num_cpf: true,
+            email: true,
+            birthday: true,
             phone_number: true,
+            avatar: true,
             profile: true,
             is_active: true,
             created_at: true,
-            avatar: true,
+            updated_at: true,
+          },
+          orderBy: {
+            created_at: 'desc',
           },
         }),
-        prisma.user.count({ where: whereCondition }),
+        prisma.user.count({
+          where: whereCondition,
+        }),
       ])
 
-      // Adicionar contagem de veículos para cada usuário
-      const usersWithVehicleCount = []
+      const totalPages = Math.ceil(totalCount / limit)
+      const hasNextPage = page < totalPages
+      const hasPreviousPage = page > 1
 
-      for (const user of users) {
-        const vehicleCount = await prisma.vehicleOwnership.count({
-          where: { user_id: user.id },
-        })
-
-        usersWithVehicleCount.push({
-          ...user,
-          vehicle_count: vehicleCount,
-        })
-      }
+      console.log(
+        `Listados ${users.length}/${totalCount} usuários ` +
+        `(página ${page}/${totalPages})`,
+      )
 
       return res.send({
-        data: usersWithVehicleCount,
+        data: users,
         pagination: {
           page,
           limit,
-          total,
-          pages: Math.ceil(total / limit),
+          totalCount,
+          totalPages,
+          hasNextPage,
+          hasPreviousPage,
         },
+        filters: {
+          profile,
+          isActive,
+          search,
+        },
+        message: `${users.length} usuários encontrados`,
       })
     } catch (error) {
-      return res.status(400).send({
-        error: 'Erro ao buscar usuários',
-        details: error instanceof Error
-          ? error.message
-          : 'Erro desconhecido',
-      })
-    }
-  })
+      console.error('Erro ao listar usuários:', error)
 
-  // GET /users/:id - Buscar usuário específico
-  app.get('/users/:id', async (req, res) => {
-    await authenticate(req, res)
-
-    try {
-      const { id } = getUserParamsSchema.parse(req.params)
-
-      const user = await prisma.user.findUnique({
-        where: { id },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          num_cpf: true,
-          birthday: true,
-          phone_number: true,
-          avatar: true,
-          profile: true,
-          is_active: true,
-          created_at: true,
-          updated_at: true,
-          vehicle_ownerships: {
-            include: {
-              vehicle: {
-                select: {
-                  id: true,
-                  license_plate: true,
-                  vehicle_type: true,
-                  fipe_brand_code: true,
-                  fipe_model_code: true,
-                  year_id: true,
-                  display_year: true,
-                  brand_name: true,
-                  model_name: true,
-                  display_fuel: true,
-                  color: true,
-                  is_company_vehicle: true,
-                },
-              },
-            },
-          },
-        },
-      })
-
-      if (!user) {
-        return res.status(404).send({ error: 'Usuário não encontrado' })
+      if (error instanceof z.ZodError) {
+        return res.status(400).send({
+          error: 'Parâmetros de consulta inválidos',
+          details: error.errors,
+        })
       }
 
-      return res.send({ data: user })
-    } catch (error) {
-      return res.status(400).send({
-        error: 'Erro ao buscar usuário',
+      return res.status(500).send({
+        error: 'Erro ao listar usuários',
         details: error instanceof Error
           ? error.message
           : 'Erro desconhecido',
@@ -211,16 +205,12 @@ export async function usersRoutes(app: FastifyInstance) {
     try {
       const data = createUserSchema.parse(req.body)
 
-      // Verificar se CPF já existe
-      const existingCpf = await prisma.user.findUnique({
-        where: { num_cpf: data.num_cpf },
+      console.log('Criando usuário:', {
+        name: data.name,
+        email: data.email,
+        profile: data.profile,
+        birthday: data.birthday,
       })
-
-      if (existingCpf) {
-        return res.status(400).send({
-          error: 'Já existe um usuário cadastrado com este CPF',
-        })
-      }
 
       // Verificar se email já existe
       const existingEmail = await prisma.user.findUnique({
@@ -233,33 +223,51 @@ export async function usersRoutes(app: FastifyInstance) {
         })
       }
 
-      // Hash da senha
-      const hashedPassword = await bcrypt.hash(data.password, 10)
+      // Verificar se CPF já existe
+      const existingCpf = await prisma.user.findUnique({
+        where: { num_cpf: data.num_cpf },
+      })
+
+      if (existingCpf) {
+        return res.status(400).send({
+          error: 'Já existe um usuário cadastrado com este CPF',
+        })
+      }
+
+      // Criptografar senha
+      const hashedPassword = await bcrypt.hash(data.password, 8)
 
       const user = await prisma.user.create({
         data: {
           ...data,
           password: hashedPassword,
-          birthday: new Date(data.birthday),
+          birthday: new Date(data.birthday + 'T00:00:00.000Z'),
           profile: data.profile as UserProfile,
         },
         select: {
           id: true,
           name: true,
-          email: true,
           num_cpf: true,
-          profile: true,
+          email: true,
+          birthday: true,
+          phone_number: true,
           avatar: true,
+          profile: true,
           is_active: true,
           created_at: true,
+          updated_at: true,
         },
       })
+
+      console.log(`Usuário criado: ${user.name} (${user.profile})`)
 
       return res.status(201).send({
         data: user,
         message: 'Usuário criado com sucesso',
       })
     } catch (error) {
+      console.error('Erro ao criar usuário:', error)
+
       if (error instanceof z.ZodError) {
         return res.status(400).send({
           error: 'Dados inválidos',
@@ -267,8 +275,79 @@ export async function usersRoutes(app: FastifyInstance) {
         })
       }
 
-      return res.status(400).send({
+      return res.status(500).send({
         error: 'Erro ao criar usuário',
+        details: error instanceof Error
+          ? error.message
+          : 'Erro desconhecido',
+      })
+    }
+  })
+
+  // GET /users/:id - Obter usuário por ID
+  app.get('/users/:id', async (req, res) => {
+    await authenticate(req, res)
+
+    try {
+      const { id } = getUserParamsSchema.parse(req.params)
+
+      console.log(`Buscando usuário: ${id}`)
+
+      const user = await prisma.user.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          name: true,
+          num_cpf: true,
+          email: true,
+          birthday: true,
+          phone_number: true,
+          avatar: true,
+          profile: true,
+          is_active: true,
+          created_at: true,
+          updated_at: true,
+          vehicle_ownerships: {
+            include: {
+              vehicle: {
+                select: {
+                  id: true,
+                  license_plate: true,
+                  brand_name: true,
+                  model_name: true,
+                  display_year: true,
+                  is_company_vehicle: true,
+                },
+              },
+            },
+          },
+        },
+      })
+
+      if (!user) {
+        return res.status(404).send({
+          error: 'Usuário não encontrado',
+        })
+      }
+
+      console.log(`Usuário encontrado: ${user.name}`)
+
+      return res.send({
+        data: user,
+        message: 'Usuário encontrado com sucesso',
+      })
+    } catch (error) {
+      console.error('Erro ao buscar usuário:', error)
+
+      if (error instanceof z.ZodError) {
+        return res.status(400).send({
+          error: 'ID inválido',
+          details: error.errors,
+        })
+      }
+
+      return res.status(500).send({
+        error: 'Erro ao buscar usuário',
         details: error instanceof Error
           ? error.message
           : 'Erro desconhecido',
@@ -284,66 +363,85 @@ export async function usersRoutes(app: FastifyInstance) {
       const { id } = getUserParamsSchema.parse(req.params)
       const data = updateUserSchema.parse(req.body)
 
-      // Verificar se usuário existe
+      console.log(`Atualizando usuário ${id}:`, {
+        name: data.name,
+        email: data.email,
+        profile: data.profile,
+        birthday: data.birthday,
+      })
+
+      // Verificar se o usuário existe
       const existingUser = await prisma.user.findUnique({
         where: { id },
       })
 
       if (!existingUser) {
-        return res.status(404).send({ error: 'Usuário não encontrado' })
-      }
-
-      // Verificar duplicatas se CPF ou email estão sendo alterados
-      if (data.num_cpf && data.num_cpf !== existingUser.num_cpf) {
-        const duplicateCpf = await prisma.user.findUnique({
-          where: { num_cpf: data.num_cpf },
+        return res.status(404).send({
+          error: 'Usuário não encontrado',
         })
-        if (duplicateCpf) {
-          return res.status(400).send({
-            error: 'Já existe um usuário cadastrado com este CPF',
-          })
-        }
       }
 
+      // Verificar conflitos de email (se fornecido)
       if (data.email && data.email !== existingUser.email) {
-        const duplicateEmail = await prisma.user.findUnique({
+        const emailConflict = await prisma.user.findUnique({
           where: { email: data.email },
         })
-        if (duplicateEmail) {
+
+        if (emailConflict) {
           return res.status(400).send({
             error: 'Já existe um usuário cadastrado com este email',
           })
         }
       }
 
-      const updatedUser = await prisma.user.update({
+      // Verificar conflitos de CPF (se fornecido)
+      if (data.num_cpf && data.num_cpf !== existingUser.num_cpf) {
+        const cpfConflict = await prisma.user.findUnique({
+          where: { num_cpf: data.num_cpf },
+        })
+
+        if (cpfConflict) {
+          return res.status(400).send({
+            error: 'Já existe um usuário cadastrado com este CPF',
+          })
+        }
+      }
+
+      const user = await prisma.user.update({
         where: { id },
         data: {
           ...data,
-          birthday: data.birthday
-            ? new Date(data.birthday)
-            : undefined,
+          birthday: data.birthday !== undefined
+            ? new Date(data.birthday + 'T00:00:00.000Z')
+            : existingUser.birthday,
           profile: data.profile
-            ? (data.profile as UserProfile)
-            : undefined,
+            ? data.profile as UserProfile
+            : existingUser.profile,
         },
         select: {
           id: true,
           name: true,
-          email: true,
           num_cpf: true,
-          profile: true,
+          email: true,
+          birthday: true,
+          phone_number: true,
           avatar: true,
+          profile: true,
           is_active: true,
+          created_at: true,
           updated_at: true,
         },
       })
 
+      console.log(`Usuário atualizado: ${user.name}`)
+
       return res.send({
-        data: updatedUser,
+        data: user,
         message: 'Usuário atualizado com sucesso',
       })
     } catch (error) {
+      console.error('Erro ao atualizar usuário:', error)
+
       if (error instanceof z.ZodError) {
         return res.status(400).send({
           error: 'Dados inválidos',
@@ -351,7 +449,7 @@ export async function usersRoutes(app: FastifyInstance) {
         })
       }
 
-      return res.status(400).send({
+      return res.status(500).send({
         error: 'Erro ao atualizar usuário',
         details: error instanceof Error
           ? error.message
@@ -360,44 +458,72 @@ export async function usersRoutes(app: FastifyInstance) {
     }
   })
 
-  // PUT /users/:id/password - Alterar senha
+  // PUT /users/:id/password - Alterar senha do usuário
   app.put('/users/:id/password', async (req, res) => {
     await authenticate(req, res)
 
     try {
       const { id } = getUserParamsSchema.parse(req.params)
-      const {
-        currentPassword,
-        newPassword,
-      } = changePasswordSchema.parse(req.body)
+      const passwordData = changePasswordSchema.parse(req.body)
+      const { currentPassword, newPassword } = passwordData
 
+      console.log(`Alterando senha do usuário: ${id}`)
+
+      // Verificar se o usuário existe
       const user = await prisma.user.findUnique({
         where: { id },
-        select: { id: true, password: true },
+        select: {
+          id: true,
+          name: true,
+          password: true,
+        },
       })
 
       if (!user) {
-        return res.status(404).send({ error: 'Usuário não encontrado' })
+        return res.status(404).send({
+          error: 'Usuário não encontrado',
+        })
       }
 
       // Verificar senha atual
-      const isCurrentPasswordValid =
-      await bcrypt.compare(currentPassword, user.password)
+      const isCurrentPasswordValid = await bcrypt.compare(
+        currentPassword,
+        user.password,
+      )
+
       if (!isCurrentPasswordValid) {
-        return res.status(400).send({ error: 'Senha atual incorreta' })
+        return res.status(400).send({
+          error: 'Senha atual incorreta',
+        })
       }
 
-      // Hash da nova senha
-      const hashedNewPassword = await bcrypt.hash(newPassword, 10)
+      // Criptografar nova senha
+      const hashedNewPassword = await bcrypt.hash(newPassword, 8)
 
+      // Atualizar senha
       await prisma.user.update({
         where: { id },
-        data: { password: hashedNewPassword },
+        data: {
+          password: hashedNewPassword,
+        },
       })
 
-      return res.send({ message: 'Senha alterada com sucesso' })
+      console.log(`Senha alterada para usuário: ${user.name}`)
+
+      return res.send({
+        message: 'Senha alterada com sucesso',
+      })
     } catch (error) {
-      return res.status(400).send({
+      console.error('Erro ao alterar senha:', error)
+
+      if (error instanceof z.ZodError) {
+        return res.status(400).send({
+          error: 'Dados inválidos',
+          details: error.errors,
+        })
+      }
+
+      return res.status(500).send({
         error: 'Erro ao alterar senha',
         details: error instanceof Error
           ? error.message
@@ -406,43 +532,72 @@ export async function usersRoutes(app: FastifyInstance) {
     }
   })
 
-  // DELETE /users/:id - Desativar usuário
+  // DELETE /users/:id - Desativar usuário (soft delete)
   app.delete('/users/:id', async (req, res) => {
     await authenticate(req, res)
 
     try {
       const { id } = getUserParamsSchema.parse(req.params)
 
+      console.log(`Desativando usuário: ${id}`)
+
+      // Verificar se o usuário existe
       const existingUser = await prisma.user.findUnique({
         where: { id },
-        include: { vehicle_ownerships: true },
+        select: {
+          id: true,
+          name: true,
+          is_active: true,
+          vehicle_ownerships: {
+            select: {
+              id: true,
+            },
+          },
+        },
       })
 
       if (!existingUser) {
-        return res.status(404).send({ error: 'Usuário não encontrado' })
-      }
-
-      // Verificar se tem veículos
-      if (existingUser.vehicle_ownerships.length > 0) {
-        return res.status(400).send({
-          error: 'Não é possível desativar usuário com veículos',
-          message:
-            'Remova todas as participações em veículos antes de desativar o ' +
-            'usuário',
+        return res.status(404).send({
+          error: 'Usuário não encontrado',
         })
       }
 
-      // Desativar em vez de deletar
+      if (!existingUser.is_active) {
+        return res.status(400).send({
+          error: 'Usuário já está desativado',
+        })
+      }
+
+      // Desativar usuário (soft delete)
       await prisma.user.update({
         where: { id },
-        data: { is_active: false },
+        data: {
+          is_active: false,
+        },
       })
 
+      console.log(
+        `Usuário ${existingUser.name} desativado com sucesso ` +
+        `(${existingUser.vehicle_ownerships.length} participações mantidas)`,
+      )
+
       return res.send({
-        message: 'Usuário desativado com sucesso',
+        message: `Usuário ${existingUser.name} desativado com sucesso`,
+        note:
+          'As participações em veículos foram mantidas. Para reativar, ' +
+          'altere is_active para true.',
       })
     } catch (error) {
-      return res.status(400).send({
+      console.error('Erro ao desativar usuário:', error)
+
+      if (error instanceof z.ZodError) {
+        return res.status(400).send({
+          error: 'ID inválido',
+          details: error.errors,
+        })
+      }
+
+      return res.status(500).send({
         error: 'Erro ao desativar usuário',
         details: error instanceof Error
           ? error.message
@@ -451,208 +606,62 @@ export async function usersRoutes(app: FastifyInstance) {
     }
   })
 
-  // GET /users/stats - Estatísticas dos usuários
-  app.get('/users/stats', async (req, res) => {
+  // PATCH /users/:id/reactivate - Reativar usuário
+  app.patch('/users/:id/reactivate', async (req, res) => {
     await authenticate(req, res)
 
     try {
-      const [
-        totalUsers,
-        usersByProfile,
-        activeUsers,
-      ] = await Promise.all([
-        prisma.user.count(),
-        prisma.user.groupBy({
-          by: ['profile'],
-          _count: { id: true },
-        }),
-        prisma.user.count({ where: { is_active: true } }),
-      ])
+      const { id } = getUserParamsSchema.parse(req.params)
 
-      // Calcular estatísticas por perfil
-      const statsByProfile = usersByProfile.reduce((acc, item) => {
-        acc[item.profile] = item._count.id
-        return acc
-      }, {} as Record<string, number>)
+      console.log(`Reativando usuário: ${id}`)
 
-      // Calcular média de veículos por usuário
-      const usersWithVehiclesList = await prisma.vehicleOwnership.groupBy({
-        by: ['user_id'],
-        _count: {
-          vehicle_id: true,
+      // Verificar se o usuário existe
+      const existingUser = await prisma.user.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          name: true,
+          is_active: true,
         },
       })
 
-      const avgVehicles = usersWithVehiclesList.length > 0
-        ? usersWithVehiclesList.reduce(
-          (acc, curr) => acc + curr._count.vehicle_id,
-          0,
-        ) / usersWithVehiclesList.length
-        : 0
+      if (!existingUser) {
+        return res.status(404).send({
+          error: 'Usuário não encontrado',
+        })
+      }
 
-      return res.send({
+      if (existingUser.is_active) {
+        return res.status(400).send({
+          error: 'Usuário já está ativo',
+        })
+      }
+
+      // Reativar usuário
+      await prisma.user.update({
+        where: { id },
         data: {
-          total_users: totalUsers,
-          active_users: activeUsers,
-          inactive_users: totalUsers - activeUsers,
-          users_with_vehicles: usersWithVehiclesList.length,
-          users_without_vehicles: totalUsers - usersWithVehiclesList.length,
-          average_vehicles_per_user: Math.round(avgVehicles * 100) / 100,
-          users_by_profile: statsByProfile,
+          is_active: true,
         },
       })
+
+      console.log(`Usuário ${existingUser.name} reativado com sucesso`)
+
+      return res.send({
+        message: `Usuário ${existingUser.name} reativado com sucesso`,
+      })
     } catch (error) {
+      console.error('Erro ao reativar usuário:', error)
+
+      if (error instanceof z.ZodError) {
+        return res.status(400).send({
+          error: 'ID inválido',
+          details: error.errors,
+        })
+      }
+
       return res.status(500).send({
-        error: 'Erro ao buscar estatísticas',
-        details: error instanceof Error
-          ? error.message
-          : 'Erro desconhecido',
-      })
-    }
-  })
-
-  // GET /users/partners - Listar apenas sócios (compatibilidade)
-  app.get('/users/partners', async (req, res) => {
-    await authenticate(req, res)
-
-    try {
-      const {
-        page = 1,
-        limit = 10,
-      } = req.query as { page?: number; limit?: number }
-
-      const skip = (page - 1) * limit
-
-      const [partners, total] = await Promise.all([
-        prisma.user.findMany({
-          where: {
-            profile: 'PARTNER',
-            is_active: true,
-          },
-          skip,
-          take: limit,
-          orderBy: { name: 'asc' },
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone_number: true,
-            avatar: true,
-            is_active: true,
-            created_at: true,
-            vehicle_ownerships: {
-              select: {
-                ownership_percentage: true,
-                vehicle: {
-                  select: {
-                    license_plate: true,
-                    vehicle_type: true,
-                  },
-                },
-              },
-            },
-          },
-        }),
-        prisma.user.count({
-          where: {
-            profile: 'PARTNER',
-            is_active: true,
-          },
-        }),
-      ])
-
-      // Adicionar contagem de veículos
-      const partnersWithVehicleCount = partners.map(partner => ({
-        ...partner,
-        vehicle_count: partner.vehicle_ownerships.length,
-      }))
-
-      return res.send({
-        data: partnersWithVehicleCount,
-        pagination: {
-          page,
-          limit,
-          total,
-          pages: Math.ceil(total / limit),
-        },
-      })
-    } catch (error) {
-      return res.status(400).send({
-        error: 'Erro ao buscar sócios',
-        details: error instanceof Error
-          ? error.message
-          : 'Erro desconhecido',
-      })
-    }
-  })
-
-  // GET /users/investors - Listar apenas investidores
-  app.get('/users/investors', async (req, res) => {
-    await authenticate(req, res)
-
-    try {
-      const {
-        page = 1,
-        limit = 10,
-      } = req.query as { page?: number; limit?: number }
-
-      const skip = (page - 1) * limit
-
-      const [investors, total] = await Promise.all([
-        prisma.user.findMany({
-          where: {
-            profile: 'INVESTOR',
-            is_active: true,
-          },
-          skip,
-          take: limit,
-          orderBy: { name: 'asc' },
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone_number: true,
-            is_active: true,
-            created_at: true,
-            vehicle_ownerships: {
-              select: {
-                ownership_percentage: true,
-                vehicle: {
-                  select: {
-                    license_plate: true,
-                    vehicle_type: true,
-                  },
-                },
-              },
-            },
-          },
-        }),
-        prisma.user.count({
-          where: {
-            profile: 'INVESTOR',
-            is_active: true,
-          },
-        }),
-      ])
-
-      // Adicionar contagem de veículos
-      const investorsWithVehicleCount = investors.map(investor => ({
-        ...investor,
-        vehicle_count: investor.vehicle_ownerships.length,
-      }))
-
-      return res.send({
-        data: investorsWithVehicleCount,
-        pagination: {
-          page,
-          limit,
-          total,
-          pages: Math.ceil(total / limit),
-        },
-      })
-    } catch (error) {
-      return res.status(400).send({
-        error: 'Erro ao buscar investidores',
+        error: 'Erro ao reativar usuário',
         details: error instanceof Error
           ? error.message
           : 'Erro desconhecido',

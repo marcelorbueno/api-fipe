@@ -1,8 +1,9 @@
-// src/routes/patrimony.ts
 import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { authenticate } from '../middleware/auth'
-import { patrimonyService } from '../services/patrimony-service'
+import { PatrimonyService } from '../services/patrimony-service'
+
+const patrimonyService = new PatrimonyService()
 
 // Schemas de validação
 const getUserPatrimonyParamsSchema = z.object({
@@ -17,15 +18,27 @@ export async function patrimonyRoutes(app: FastifyInstance) {
     try {
       const { userId } = getUserPatrimonyParamsSchema.parse(req.params)
 
-      const patrimony = await patrimonyService.calculateUserPatrimony(userId)
+      console.log(`📊 Calculando patrimônio para usuário: ${userId}`)
+
+      const userPatrimony =
+        await patrimonyService.calculateUserPatrimony(userId)
 
       return res.send({
-        data: patrimony,
-        message: `Patrimônio calculado para ${patrimony.user_name}`,
+        data: userPatrimony,
+        message: `Patrimônio calculado para ${userPatrimony.user_name}`,
+        breakdown: {
+          total: userPatrimony.total_patrimony,
+          personal_vehicles: userPatrimony.personal_vehicles_value,
+          company_participation: userPatrimony.company_vehicles_value,
+        },
       })
     } catch (error) {
+      console.error('❌ Erro ao calcular patrimônio do usuário:', error)
+
       if (error instanceof Error && error.message === 'User not found') {
-        return res.status(404).send({ error: 'Usuário não encontrado' })
+        return res.status(404).send({
+          error: 'Usuário não encontrado',
+        })
       }
 
       return res.status(500).send({
@@ -37,19 +50,25 @@ export async function patrimonyRoutes(app: FastifyInstance) {
     }
   })
 
-  // GET /patrimony/partners - Patrimônio de todos os sócios
+  // GET /patrimony/partners - Patrimônio dos sócios (incluindo participação na
+  // empresa)
   app.get('/patrimony/partners', async (req, res) => {
     await authenticate(req, res)
 
     try {
+      console.log('🤝 Calculando patrimônio de todos os sócios...')
+
       const partnersPatrimony =
         await patrimonyService.calculateAllPartnersPatrimony()
 
       const summary = {
         total_partners: partnersPatrimony.length,
-        total_patrimony:
-          partnersPatrimony.reduce((sum, partner) =>
-            sum + partner.total_patrimony, 0),
+        total_patrimony: partnersPatrimony.reduce(
+          (sum, partner) => sum + partner.total_patrimony, 0),
+        total_personal_patrimony: partnersPatrimony.reduce(
+          (sum, partner) => sum + partner.personal_vehicles_value, 0),
+        total_company_participation: partnersPatrimony.reduce(
+          (sum, partner) => sum + partner.company_vehicles_value, 0),
         average_patrimony: partnersPatrimony.length > 0
           ? partnersPatrimony.reduce(
             (sum, partner) => sum + partner.total_patrimony, 0) /
@@ -60,9 +79,15 @@ export async function patrimonyRoutes(app: FastifyInstance) {
       return res.send({
         data: partnersPatrimony,
         summary,
-        message: `Patrimônio calculado para ${partnersPatrimony.length} sócios`,
+        message:
+          `Patrimônio calculado para ${partnersPatrimony.length} sócios`,
+        note:
+          'O patrimônio dos sócios inclui veículos pessoais + participação ' +
+          'nos veículos da empresa',
       })
     } catch (error) {
+      console.error('❌ Erro ao calcular patrimônio dos sócios:', error)
+
       return res.status(500).send({
         error: 'Erro ao calcular patrimônio dos sócios',
         details: error instanceof Error
@@ -72,19 +97,20 @@ export async function patrimonyRoutes(app: FastifyInstance) {
     }
   })
 
-  // GET /patrimony/investors - Patrimônio de todos os investidores
+  // GET /patrimony/investors - Patrimônio dos investidores
   app.get('/patrimony/investors', async (req, res) => {
     await authenticate(req, res)
 
     try {
+      console.log('💼 Calculando patrimônio de todos os investidores...')
+
       const investorsPatrimony =
         await patrimonyService.calculateAllInvestorsPatrimony()
 
       const summary = {
         total_investors: investorsPatrimony.length,
-        total_patrimony:
-          investorsPatrimony.reduce((sum, investor) =>
-            sum + investor.total_patrimony, 0),
+        total_patrimony: investorsPatrimony.reduce(
+          (sum, investor) => sum + investor.total_patrimony, 0),
         average_patrimony: investorsPatrimony.length > 0
           ? investorsPatrimony.reduce(
             (sum, investor) => sum + investor.total_patrimony, 0) /
@@ -99,6 +125,8 @@ export async function patrimonyRoutes(app: FastifyInstance) {
           `Patrimônio calculado para ${investorsPatrimony.length} investidores`,
       })
     } catch (error) {
+      console.error('❌ Erro ao calcular patrimônio dos investidores:', error)
+
       return res.status(500).send({
         error: 'Erro ao calcular patrimônio dos investidores',
         details: error instanceof Error
@@ -113,16 +141,25 @@ export async function patrimonyRoutes(app: FastifyInstance) {
     await authenticate(req, res)
 
     try {
+      console.log('🏢 Calculando patrimônio da empresa...')
+
       const companyPatrimony =
         await patrimonyService.calculateCompanyPatrimony()
 
       return res.send({
         data: companyPatrimony,
         message:
-        `Patrimônio da empresa calculado: ${companyPatrimony.vehicles_count} ` +
-        'veículos',
+          'Patrimônio da empresa calculado: ' +
+          `${companyPatrimony.vehicles_count} veículos`,
+        breakdown: {
+          total_value: companyPatrimony.total_company_patrimony,
+          vehicles_count: companyPatrimony.vehicles_count,
+          partners_count: companyPatrimony.partners.length,
+        },
       })
     } catch (error) {
+      console.error('❌ Erro ao calcular patrimônio da empresa:', error)
+
       return res.status(500).send({
         error: 'Erro ao calcular patrimônio da empresa',
         details: error instanceof Error
@@ -147,6 +184,19 @@ export async function patrimonyRoutes(app: FastifyInstance) {
         data: report,
         message: 'Relatório completo de patrimônio gerado com sucesso',
         generated_at: new Date().toISOString(),
+        insights: {
+          company_vs_personal: {
+            company_patrimony: report.summary.company_patrimony,
+            partners_personal: report.summary.partners_personal_patrimony,
+            partners_company_participation:
+              report.summary.partners_company_participation,
+            investors_patrimony: report.summary.investors_patrimony,
+          },
+          totals: {
+            grand_total: report.summary.total_patrimony,
+            total_vehicles: report.summary.total_vehicles,
+          },
+        },
       })
     } catch (error) {
       console.error('❌ Error generating patrimony report:', error)
@@ -172,99 +222,14 @@ export async function patrimonyRoutes(app: FastifyInstance) {
       return res.send({
         data: result,
         message:
-        `Cache FIPE atualizado: ${result.updated} sucessos, ${result.errors} ` +
-        'erros',
+          `Cache FIPE atualizado: ${result.updated} sucessos, ` +
+          `${result.errors} erros`,
       })
     } catch (error) {
       console.error('❌ Error refreshing FIPE cache:', error)
 
       return res.status(500).send({
         error: 'Erro ao atualizar cache FIPE',
-        details: error instanceof Error
-          ? error.message
-          : 'Erro desconhecido',
-      })
-    }
-  })
-
-  // GET /patrimony/stats - Estatísticas gerais de patrimônio
-  app.get('/patrimony/stats', async (req, res) => {
-    await authenticate(req, res)
-
-    try {
-      const report = await patrimonyService.generateCompletePatrimonyReport()
-
-      const stats = {
-        // Resumo geral
-        total_patrimony: report.summary.total_patrimony,
-        total_vehicles: report.summary.total_vehicles,
-
-        // Breakdown por categoria
-        company: {
-          patrimony: report.summary.company_patrimony,
-          percentage: report.summary.total_patrimony > 0
-            ? (
-                report.summary.company_patrimony /
-                report.summary.total_patrimony) * 100
-            : 0,
-          vehicles_count: report.company.vehicles_count,
-        },
-
-        partners: {
-          count: report.partners.length,
-          personal_patrimony: report.summary.partners_personal_patrimony,
-          percentage: report.summary.total_patrimony > 0
-            ? (
-                report.summary.partners_personal_patrimony /
-                report.summary.total_patrimony) * 100
-            : 0,
-          average_patrimony: report.partners.length > 0
-            ? report.partners.reduce((sum, p) =>
-              sum + p.total_patrimony, 0) / report.partners.length
-            : 0,
-        },
-
-        investors: {
-          count: report.investors.length,
-          patrimony: report.summary.investors_patrimony,
-          percentage: report.summary.total_patrimony > 0
-            ? (
-                report.summary.investors_patrimony /
-                report.summary.total_patrimony) * 100
-            : 0,
-          average_patrimony: report.investors.length > 0
-            ? report.summary.investors_patrimony / report.investors.length
-            : 0,
-        },
-
-        // Top performers
-        top_partners: report.partners
-          .sort((a, b) => b.total_patrimony - a.total_patrimony)
-          .slice(0, 3)
-          .map(partner => ({
-            name: partner.user_name,
-            patrimony: partner.total_patrimony,
-            vehicles_count: partner.vehicles.length,
-          })),
-
-        top_investors: report.investors
-          .sort((a, b) => b.total_patrimony - a.total_patrimony)
-          .slice(0, 3)
-          .map(investor => ({
-            name: investor.user_name,
-            patrimony: investor.total_patrimony,
-            vehicles_count: investor.vehicles.length,
-          })),
-      }
-
-      return res.send({
-        data: stats,
-        message: 'Estatísticas de patrimônio calculadas',
-        calculated_at: new Date().toISOString(),
-      })
-    } catch (error) {
-      return res.status(500).send({
-        error: 'Erro ao calcular estatísticas de patrimônio',
         details: error instanceof Error
           ? error.message
           : 'Erro desconhecido',

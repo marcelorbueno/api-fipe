@@ -1,4 +1,3 @@
-import axios from '../config/axios'
 import { env } from '../env'
 
 interface FipeBrand {
@@ -16,41 +15,31 @@ interface FipeYear {
   name: string
 }
 
+// ✅ Interface corrigida para a resposta da API FIPE v2
 interface FipeValue {
-  price: string
-  brand: string
-  model: string
-  modelYear: number
-  fuel: string
-  codeFipe: string
-  referenceMonth: string
-  vehicleType: number
-  fuelAcronym: string
+  price: string        // Preço no formato "R$ 45.000,00"
+  brand: string        // Nome da marca
+  model: string        // Nome do modelo
+  modelYear: number    // Ano do modelo
+  fuel: string         // Nome do combustível
+  codeFipe: string     // Código FIPE
+  referenceMonth: string // Mês de referência
+  vehicleType: number  // Tipo do veículo
+  fuelAcronym: string  // Sigla do combustível
 }
 
 export type VehicleType = 'cars' | 'motorcycles'
 
 export class FipeAPI {
   private baseURL = env.API_FIPE_PATH
-  private reference = env.FIPE_REFERENCE
-
-  constructor() {
-    console.log(`🔗 FIPE API configurada: ${this.baseURL}`)
-    console.log(`📋 Referência: ${this.reference}`)
-  }
 
   // Buscar marcas
   async getBrands(vehicleType: VehicleType): Promise<FipeBrand[]> {
-    const url = `${this.baseURL}/${vehicleType}/brands`
-
-    console.log(`🌐 Buscando marcas: ${url}`)
-
-    const response = await axios.get(url, {
-      params: { reference: this.reference },
-    })
-
-    console.log(`✅ ${response.data.length} marcas encontradas`)
-    return response.data
+    const response = await fetch(`${this.baseURL}/${vehicleType}/brands`)
+    if (!response.ok) {
+      throw new Error(`Failed to fetch brands: ${response.statusText}`)
+    }
+    return response.json() as Promise<FipeBrand[]>
   }
 
   // Buscar modelos
@@ -59,15 +48,12 @@ export class FipeAPI {
     brandCode: number,
   ): Promise<FipeModel[]> {
     const url = `${this.baseURL}/${vehicleType}/brands/${brandCode}/models`
+    const response = await fetch(url)
 
-    console.log(`🌐 Buscando modelos: ${url}`)
-
-    const response = await axios.get(url, {
-      params: { reference: this.reference },
-    })
-
-    console.log(`✅ ${response.data.length} modelos encontrados`)
-    return response.data
+    if (!response.ok) {
+      throw new Error(`Failed to fetch models: ${response.statusText}`)
+    }
+    return response.json() as Promise<FipeModel[]>
   }
 
   // Buscar anos
@@ -79,17 +65,15 @@ export class FipeAPI {
     const url = `${this.baseURL}/${vehicleType}/brands/` +
       `${brandCode}/models/${modelCode}/years`
 
-    console.log(`🌐 Buscando anos: ${url}`)
+    const response = await fetch(url)
 
-    const response = await axios.get(url, {
-      params: { reference: this.reference },
-    })
-
-    console.log(`✅ ${response.data.length} anos encontrados`)
-    return response.data
+    if (!response.ok) {
+      throw new Error(`Failed to fetch years: ${response.statusText}`)
+    }
+    return response.json() as Promise<FipeYear[]>
   }
 
-  // Buscar valor
+  // ✅ CORRIGIDO: Método getValue para buscar preço do veículo
   async getValue(
     vehicleType: VehicleType,
     brandCode: number,
@@ -99,43 +83,44 @@ export class FipeAPI {
     const url = `${this.baseURL}/${vehicleType}/brands/` +
       `${brandCode}/models/${modelCode}/years/${yearCode}`
 
-    console.log(`🌐 Buscando valor FIPE: ${url}`)
-    console.log(`📋 Parâmetros: reference=${this.reference}`)
+    console.log(`🌐 FIPE API Request: ${url}`)
 
-    const response = await axios.get(url, {
-      params: { reference: this.reference },
-      timeout: 10000, // 10 segundos de timeout
+    const response = await fetch(url)
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch value: ${response.statusText}`)
+    }
+
+    const data = await response.json() as FipeValue
+    console.log('📊 FIPE API Response:', {
+      price: data.price,
+      brand: data.brand,
+      model: data.model,
+      year: data.modelYear,
+      fuel: data.fuel,
+      reference: data.referenceMonth,
     })
 
-    console.log('📊 Resposta FIPE recebida:', {
-      brand: response.data.brand,
-      model: response.data.model,
-      price: response.data.price,
-      fuelAcronym: response.data.fuelAcronym,
-      codeFipe: response.data.codeFipe,
-      referenceMonth: response.data.referenceMonth,
-    })
-
-    return response.data
+    return data
   }
 
-  // Validar se tipo de veículo é válido
+  // Método alternativo usando parâmetros em objeto (para compatibilidade)
+  async getVehiclePrice(params: {
+    vehicleType: VehicleType
+    brandCode: number
+    modelCode: number
+    yearCode: string
+  }): Promise<FipeValue> {
+    return this.getValue(
+      params.vehicleType,
+      params.brandCode,
+      params.modelCode,
+      params.yearCode,
+    )
+  }
+
   static isValidVehicleType(type: string): type is VehicleType {
     return ['cars', 'motorcycles'].includes(type)
-  }
-
-  // Buscar referências disponíveis
-  async getReferences(): Promise<Array<{ code: number; month: string }>> {
-    const url = `${this.baseURL}/references`
-
-    console.log(`🌐 Buscando referências: ${url}`)
-
-    const response = await axios.get(url, {
-      timeout: 10000,
-    })
-
-    console.log(`✅ ${response.data.length} referências encontradas`)
-    return response.data
   }
 }
 

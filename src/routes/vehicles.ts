@@ -1,60 +1,28 @@
 import { FastifyInstance } from 'fastify'
-import { PrismaClient, VehicleType, UserProfile, Prisma } from '@prisma/client'
+import { PrismaClient, VehicleType } from '@prisma/client'
 import { z } from 'zod'
 import { authenticate } from '../middleware/auth'
-import { vehicleEnrichmentService } from '@/services/vehicle-enrichment-service'
-import { formatOwnershipResponse } from '@/lib/formatters'
 
 const prisma = new PrismaClient()
 
-// Interfaces para tipagem correta
-interface WhereCondition {
-  vehicle_type?: VehicleType
-  display_year?: number
-  is_company_vehicle?: boolean
-  fuel_acronym?: {
-    contains: string
-    mode: 'insensitive'
-  }
-  brand_name?: {
-    contains: string
-    mode: 'insensitive'
-  }
-  OR?: Array<{
-    license_plate?: {
-      contains: string
-      mode: 'insensitive'
-    }
-    renavam?: {
-      contains: string
-      mode: 'insensitive'
-    }
-    brand_name?: {
-      contains: string
-      mode: 'insensitive'
-    }
-    model_name?: {
-      contains: string
-      mode: 'insensitive'
-    }
-    color?: {
-      contains: string
-      mode: 'insensitive'
-    }
-  }>
-}
-
-// Schemas de validação
+// Schemas de validação corrigidos
 const createVehicleSchema = z.object({
   license_plate: z.string().min(7).max(8),
   renavam: z.string().length(11),
   fipe_brand_code: z.number().int().positive(),
   fipe_model_code: z.number().int().positive(),
   year_id: z.string().min(1),
+  fuel_acronym: z.string().min(1).max(3).optional(),
   vehicle_type: z.enum(['cars', 'motorcycles']),
+  display_year: z.number().int().positive().optional(),
+  display_fuel: z.string().optional(),
+  brand_name: z.string().optional(),
+  model_name: z.string().optional(),
   color: z.string().optional(),
   observations: z.string().optional().nullable(),
-  purchase_date: z.string().datetime().optional().nullable(),
+  purchase_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'Data deve estar no formato YYYY-MM-DD',
+  }).optional().nullable(),
   purchase_value: z.number().positive().optional().nullable(),
   is_company_vehicle: z.boolean().default(false),
 })
@@ -97,18 +65,20 @@ export async function vehiclesRoutes(app: FastifyInstance) {
     await authenticate(req, res)
 
     try {
+      const queryParams = listVehiclesQuerySchema.parse(req.query)
       const {
         page,
         limit,
         vehicleType,
         displayYear,
         search,
-        isCompanyVehicle,
         fuelAcronym,
         brandName,
-      } = listVehiclesQuerySchema.parse(req.query)
+      } = queryParams
 
-      console.log('📋 Filtros aplicados:', {
+      const isCompanyVehicle = queryParams.isCompanyVehicle
+
+      console.log('Filtros aplicados:', {
         vehicleType,
         displayYear,
         search,
@@ -119,11 +89,25 @@ export async function vehiclesRoutes(app: FastifyInstance) {
 
       const skip = (page - 1) * limit
 
-      // ✅ CORREÇÃO: Tipagem específica em vez de any
+      interface WhereCondition {
+        vehicle_type?: VehicleType
+        display_year?: number
+        is_company_vehicle?: boolean
+        fuel_acronym?: { contains: string; mode: 'insensitive' }
+        brand_name?: { contains: string; mode: 'insensitive' }
+        OR?: Array<{
+          license_plate?: { contains: string; mode: 'insensitive' }
+          renavam?: { contains: string; mode: 'insensitive' }
+          brand_name?: { contains: string; mode: 'insensitive' }
+          model_name?: { contains: string; mode: 'insensitive' }
+        }>
+      }
+
       const whereCondition: WhereCondition = {}
 
+      // Aplicar filtros
       if (vehicleType) {
-        whereCondition.vehicle_type = vehicleType
+        whereCondition.vehicle_type = vehicleType as VehicleType
       }
 
       if (displayYear) {
@@ -148,23 +132,42 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         }
       }
 
-      // Busca textual em múltiplos campos
+      // Filtro de busca em múltiplos campos
       if (search) {
         whereCondition.OR = [
-          { license_plate: { contains: search, mode: 'insensitive' } },
-          { renavam: { contains: search, mode: 'insensitive' } },
-          { brand_name: { contains: search, mode: 'insensitive' } },
-          { model_name: { contains: search, mode: 'insensitive' } },
-          { color: { contains: search, mode: 'insensitive' } },
+          {
+            license_plate: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          },
+          {
+            renavam: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          },
+          {
+            brand_name: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          },
+          {
+            model_name: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          },
         ]
       }
 
-      const [vehicles, total] = await Promise.all([
+      // Buscar veículos com paginação
+      const [vehicles, totalCount] = await Promise.all([
         prisma.vehicle.findMany({
           where: whereCondition,
           skip,
           take: limit,
-          orderBy: { created_at: 'desc' },
           include: {
             ownerships: {
               include: {
@@ -179,25 +182,47 @@ export async function vehiclesRoutes(app: FastifyInstance) {
               },
             },
           },
+          orderBy: {
+            created_at: 'desc',
+          },
         }),
-        prisma.vehicle.count({ where: whereCondition }),
+        prisma.vehicle.count({
+          where: whereCondition,
+        }),
       ])
 
-      const totalPages = Math.ceil(total / limit)
+      const totalPages = Math.ceil(totalCount / limit)
+      const hasNextPage = page < totalPages
+      const hasPreviousPage = page > 1
+
+      console.log(
+        `Listados ${vehicles.length}/${totalCount} veículos ` +
+        `(página ${page}/${totalPages})`,
+      )
 
       return res.send({
         data: vehicles,
         pagination: {
           page,
           limit,
-          total,
+          totalCount,
           totalPages,
-          hasNextPage: page < totalPages,
-          hasPrevPage: page > 1,
+          hasNextPage,
+          hasPreviousPage,
+        },
+        filters: {
+          vehicleType,
+          displayYear,
+          search,
+          isCompanyVehicle,
+          fuelAcronym,
+          brandName,
         },
         message: `${vehicles.length} veículos encontrados`,
       })
     } catch (error) {
+      console.error('Erro ao listar veículos:', error)
+
       if (error instanceof z.ZodError) {
         return res.status(400).send({
           error: 'Parâmetros de consulta inválidos',
@@ -214,71 +239,19 @@ export async function vehiclesRoutes(app: FastifyInstance) {
     }
   })
 
-  // GET /vehicles/:id - Buscar veículo específico
-  app.get('/vehicles/:id', async (req, res) => {
-    await authenticate(req, res)
-
-    try {
-      const { id } = getVehicleParamsSchema.parse(req.params)
-
-      const vehicle = await prisma.vehicle.findUnique({
-        where: { id },
-        include: {
-          ownerships: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  name: true,
-                  email: true,
-                  profile: true,
-                },
-              },
-            },
-          },
-        },
-      })
-
-      if (!vehicle) {
-        return res.status(404).send({ error: 'Veículo não encontrado' })
-      }
-
-      // Calcular total de participação
-      const totalOwnership = vehicle.ownerships.reduce(
-        (sum, ownership) => sum + Number(ownership.ownership_percentage),
-        0,
-      )
-
-      return res.send({
-        data: {
-          ...vehicle,
-          totalOwnership,
-          remainingOwnership: 100 - totalOwnership,
-        },
-      })
-    } catch (error) {
-      return res.status(400).send({
-        error: 'Erro ao buscar veículo',
-        details: error instanceof Error
-          ? error.message
-          : 'Erro desconhecido',
-      })
-    }
-  })
-
-  // POST /vehicles - Criar novo veículo com enriquecimento automático
+  // POST /vehicles - Criar novo veículo
   app.post('/vehicles', async (req, res) => {
     await authenticate(req, res)
 
     try {
       const data = createVehicleSchema.parse(req.body)
 
-      console.log('🚗 Criando veículo com dados FIPE:', {
+      console.log('Criando veículo:', {
         license_plate: data.license_plate,
-        fipe_brand_code: data.fipe_brand_code,
-        fipe_model_code: data.fipe_model_code,
         year_id: data.year_id,
-        vehicle_type: data.vehicle_type,
+        fuel_acronym: data.fuel_acronym,
+        is_company_vehicle: data.is_company_vehicle,
+        purchase_date: data.purchase_date,
       })
 
       // Verificar se placa já existe
@@ -303,16 +276,28 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         })
       }
 
-      // 🔍 Buscar informações enriquecidas da API FIPE
-      console.log('🌐 Buscando dados FIPE...')
-      const enrichedData = await vehicleEnrichmentService.enrichVehicleData(
-        data.vehicle_type,
-        data.fipe_brand_code,
-        data.fipe_model_code,
-        data.year_id,
-      )
+      // Se display_year não foi fornecido, extrair do year_id
+      let displayYear = data.display_year
+      if (!displayYear && data.year_id) {
+        const yearMatch = data.year_id.match(/^(\d{4})/)
+        if (yearMatch) {
+          displayYear = parseInt(yearMatch[1])
+        }
+      }
 
-      // Criar veículo com dados enriquecidos
+      // Se display_fuel não foi fornecido, converter do fuel_acronym
+      let displayFuel: string | undefined = data.display_fuel
+      if (!displayFuel && data.fuel_acronym) {
+        const fuelMap: Record<string, string> = {
+          G: 'Gasolina',
+          D: 'Diesel',
+          E: 'Etanol',
+          F: 'Flex',
+        }
+        displayFuel =
+          fuelMap[data.fuel_acronym.toUpperCase()] || data.fuel_acronym
+      }
+
       const vehicle = await prisma.vehicle.create({
         data: {
           license_plate: data.license_plate,
@@ -320,22 +305,18 @@ export async function vehiclesRoutes(app: FastifyInstance) {
           fipe_brand_code: data.fipe_brand_code,
           fipe_model_code: data.fipe_model_code,
           year_id: data.year_id,
+          fuel_acronym: data.fuel_acronym || null,
           vehicle_type: data.vehicle_type as VehicleType,
-
-          // Dados enriquecidos da API FIPE
-          brand_name: enrichedData.brand_name,
-          model_name: enrichedData.model_name,
-          display_year: enrichedData.display_year,
-          display_fuel: enrichedData.display_fuel,
-          fuel_acronym: enrichedData.fuel_acronym,
-
-          // Dados opcionais do usuário
-          color: data.color,
-          observations: data.observations,
+          display_year: displayYear || undefined,
+          display_fuel: displayFuel || undefined,
+          brand_name: data.brand_name || undefined,
+          model_name: data.model_name || undefined,
+          color: data.color || undefined,
+          observations: data.observations || undefined,
           purchase_date: data.purchase_date
-            ? new Date(data.purchase_date)
-            : null,
-          purchase_value: data.purchase_value,
+            ? new Date(data.purchase_date + 'T00:00:00.000Z')
+            : undefined,
+          purchase_value: data.purchase_value || undefined,
           is_company_vehicle: data.is_company_vehicle,
         },
         include: {
@@ -354,89 +335,53 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         },
       })
 
-      // 💾 Salvar dados no cache FIPE
-      await prisma.fipeCache.create({
-        data: {
-          brand_code: data.fipe_brand_code,
-          model_code: data.fipe_model_code,
-          year_id: data.year_id,
-          fuel_acronym: enrichedData.fuel_acronym,
-          vehicle_type: data.vehicle_type as VehicleType,
-          fipe_value: enrichedData.current_fipe_value,
-          brand_name: enrichedData.brand_name,
-          model_name: enrichedData.model_name,
-          model_year: enrichedData.display_year,
-          fuel_name: enrichedData.display_fuel,
-          code_fipe: enrichedData.code_fipe,
-          reference_month: enrichedData.reference_month,
-        },
-      }).catch(error => {
-        // Se já existe no cache, não é problema
-        console.log('ℹ️ Cache FIPE já existe ou erro ao salvar:', error.message)
-      })
-
-      // 🤝 Se for veículo da empresa, criar participações automáticas para
-      // sócios
+      // Se for veículo da empresa, automaticamente criar participações para
+      // todos os sócios
       if (data.is_company_vehicle) {
         const partners = await prisma.user.findMany({
           where: {
-            profile: UserProfile.PARTNER,
+            profile: 'PARTNER',
             is_active: true,
           },
+          select: { id: true, name: true },
         })
 
         if (partners.length > 0) {
-          const equalPercentage = 100 / partners.length
+          const ownershipPercentage = 100 / partners.length
 
-          const ownerships = await Promise.all(
+          await Promise.all(
             partners.map(partner =>
               prisma.vehicleOwnership.create({
                 data: {
                   vehicle_id: vehicle.id,
                   user_id: partner.id,
-                  ownership_percentage: equalPercentage,
-                },
-                include: {
-                  user: {
-                    select: {
-                      id: true,
-                      name: true,
-                      email: true,
-                      profile: true,
-                    },
-                  },
+                  ownership_percentage: ownershipPercentage,
                 },
               }),
             ),
           )
 
-          vehicle.ownerships = ownerships
+          console.log(
+            `Veículo da empresa: criadas ${partners.length} participações ` +
+            `de ${ownershipPercentage.toFixed(2)}% cada`,
+          )
+        } else {
+          console.log(
+            'Nenhum sócio ativo encontrado para criar participações ' +
+            'automáticas',
+          )
         }
       }
 
-      console.log(
-        `✅ Veículo criado: ${enrichedData.brand_name} ` +
-        `${enrichedData.model_name}`,
-      )
-
       return res.status(201).send({
-        data: {
-          ...vehicle,
-          current_fipe_value: enrichedData.current_fipe_value,
-          fipe_info: {
-            code_fipe: enrichedData.code_fipe,
-            reference_month: enrichedData.reference_month,
-            price:
-              `R$ ${enrichedData.current_fipe_value.toLocaleString('pt-BR')}`,
-          },
-        },
+        data: vehicle,
         message: data.is_company_vehicle
-          ? 'Veículo da empresa criado com participações automáticas para' +
+          ? 'Veículo da empresa criado com participações automáticas para ' +
             'todos os sócios'
           : 'Veículo criado com sucesso',
       })
     } catch (error) {
-      console.error('❌ Erro ao criar veículo:', error)
+      console.error('Erro ao criar veículo:', error)
 
       if (error instanceof z.ZodError) {
         return res.status(400).send({
@@ -462,121 +407,107 @@ export async function vehiclesRoutes(app: FastifyInstance) {
       const { id } = getVehicleParamsSchema.parse(req.params)
       const data = updateVehicleSchema.parse(req.body)
 
-      console.log(`🔄 Atualizando veículo ${id}`)
+      console.log(`Atualizando veículo ${id}:`, data)
 
-      // Verificar se veículo existe
+      // Verificar se o veículo existe
       const existingVehicle = await prisma.vehicle.findUnique({
         where: { id },
       })
 
       if (!existingVehicle) {
-        return res.status(404).send({ error: 'Veículo não encontrado' })
+        return res.status(404).send({
+          error: 'Veículo não encontrado',
+        })
       }
 
-      // Verificar duplicatas
+      // Verificar conflitos de placa (se fornecida)
       if (data.license_plate && data.license_plate !==
         existingVehicle.license_plate) {
-        const duplicatePlate = await prisma.vehicle.findUnique({
+        const plateConflict = await prisma.vehicle.findUnique({
           where: { license_plate: data.license_plate },
         })
-        if (duplicatePlate) {
+
+        if (plateConflict) {
           return res.status(400).send({
             error: 'Já existe um veículo cadastrado com esta placa',
           })
         }
       }
 
+      // Verificar conflitos de RENAVAM (se fornecido)
       if (data.renavam && data.renavam !== existingVehicle.renavam) {
-        const duplicateRenavam = await prisma.vehicle.findUnique({
+        const renavamConflict = await prisma.vehicle.findUnique({
           where: { renavam: data.renavam },
         })
-        if (duplicateRenavam) {
+
+        if (renavamConflict) {
           return res.status(400).send({
             error: 'Já existe um veículo cadastrado com este RENAVAM',
           })
         }
       }
 
-      // Verificar se códigos FIPE mudaram
-      const fipeCodesChanged =
-        (data.fipe_brand_code && data.fipe_brand_code !==
-          existingVehicle.fipe_brand_code) ||
-        (data.fipe_model_code && data.fipe_model_code !==
-          existingVehicle.fipe_model_code) ||
-        (data.year_id && data.year_id !== existingVehicle.year_id) ||
-        (data.vehicle_type && data.vehicle_type !==
-          existingVehicle.vehicle_type)
-
-      let enrichedData = null
-
-      // Se códigos FIPE mudaram, buscar novos dados
-      if (fipeCodesChanged) {
-        console.log('🌐 Códigos FIPE alterados, buscando novos dados...')
-
-        const brandCode =
-          data.fipe_brand_code || existingVehicle.fipe_brand_code
-        const modelCode =
-          data.fipe_model_code || existingVehicle.fipe_model_code
-        const yearId = data.year_id || existingVehicle.year_id
-        const vehicleType = data.vehicle_type || existingVehicle.vehicle_type
-
-        enrichedData = await vehicleEnrichmentService.enrichVehicleData(
-          vehicleType as 'cars' | 'motorcycles',
-          brandCode,
-          modelCode,
-          yearId,
-        )
+      // Preparar dados para atualização
+      let displayYear = data.display_year
+      if (!displayYear && data.year_id) {
+        const yearMatch = data.year_id.match(/^(\d{4})/)
+        if (yearMatch) {
+          displayYear = parseInt(yearMatch[1])
+        }
       }
 
-      // ✅ CORREÇÃO FINAL: Usar tipo Prisma e Object.assign
-      const updateData: Prisma.VehicleUpdateInput = {}
-
-      // Atribuir campos básicos usando Object.assign para evitar problemas de
-      // tipo
-      Object.assign(updateData, {
-        ...(data.license_plate !== undefined &&
-          { license_plate: data.license_plate }),
-        ...(data.renavam !== undefined && { renavam: data.renavam }),
-        ...(data.fipe_brand_code !== undefined &&
-          { fipe_brand_code: data.fipe_brand_code }),
-        ...(data.fipe_model_code !== undefined &&
-          { fipe_model_code: data.fipe_model_code }),
-        ...(data.year_id !== undefined && { year_id: data.year_id }),
-        ...(data.color !== undefined && { color: data.color }),
-        ...(data.observations !== undefined &&
-          { observations: data.observations }),
-        ...(data.purchase_value !== undefined &&
-          { purchase_value: data.purchase_value }),
-        ...(data.is_company_vehicle !== undefined &&
-          { is_company_vehicle: data.is_company_vehicle }),
-      })
-
-      // Conversões específicas
-      if (data.vehicle_type !== undefined) {
-        updateData.vehicle_type = data.vehicle_type as VehicleType
+      let displayFuel: string | undefined = data.display_fuel
+      if (!displayFuel && data.fuel_acronym) {
+        const fuelMap: Record<string, string> = {
+          G: 'Gasolina',
+          D: 'Diesel',
+          E: 'Etanol',
+          F: 'Flex',
+        }
+        displayFuel =
+          fuelMap[data.fuel_acronym.toUpperCase()] || data.fuel_acronym
       }
 
-      if (data.purchase_date !== undefined) {
-        updateData.purchase_date = data.purchase_date
-          ? new Date(data.purchase_date)
-          : null
-      }
-
-      // Dados enriquecidos (se códigos FIPE mudaram)
-      if (enrichedData) {
-        Object.assign(updateData, {
-          brand_name: enrichedData.brand_name,
-          model_name: enrichedData.model_name,
-          display_year: enrichedData.display_year,
-          display_fuel: enrichedData.display_fuel,
-          fuel_acronym: enrichedData.fuel_acronym,
-        })
-      }
-
-      // Atualizar veículo
-      const updatedVehicle = await prisma.vehicle.update({
+      const vehicle = await prisma.vehicle.update({
         where: { id },
-        data: updateData,
+        data: {
+          license_plate: data.license_plate,
+          renavam: data.renavam,
+          fipe_brand_code: data.fipe_brand_code,
+          fipe_model_code: data.fipe_model_code,
+          year_id: data.year_id,
+          fuel_acronym: data.fuel_acronym !== undefined
+            ? data.fuel_acronym || null
+            : existingVehicle.fuel_acronym,
+          vehicle_type: data.vehicle_type
+            ? data.vehicle_type as VehicleType
+            : existingVehicle.vehicle_type,
+          display_year: displayYear || existingVehicle.display_year,
+          display_fuel: displayFuel || existingVehicle.display_fuel,
+          brand_name: data.brand_name !== undefined
+            ? data.brand_name
+            : existingVehicle.brand_name,
+          model_name: data.model_name !== undefined
+            ? data.model_name
+            : existingVehicle.model_name,
+          color: data.color !== undefined
+            ? data.color
+            : existingVehicle.color,
+          observations: data.observations !== undefined
+            ? data.observations
+            : existingVehicle.observations,
+          purchase_date: data.purchase_date !== undefined
+            ? data.purchase_date
+              ? new Date(data.purchase_date + 'T00:00:00.000Z')
+              : null
+            : existingVehicle.purchase_date,
+          purchase_value: data.purchase_value !== undefined
+            ? data.purchase_value
+            : existingVehicle.purchase_value,
+          is_company_vehicle: data.is_company_vehicle !== undefined
+            ? data.is_company_vehicle
+            : existingVehicle.is_company_vehicle,
+        },
         include: {
           ownerships: {
             include: {
@@ -593,62 +524,12 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         },
       })
 
-      // Atualizar cache FIPE se necessário
-      if (enrichedData) {
-        await prisma.fipeCache.upsert({
-          where: {
-            brand_code_model_code_year_id_fuel_acronym_vehicle_type: {
-              brand_code: updatedVehicle.fipe_brand_code,
-              model_code: updatedVehicle.fipe_model_code,
-              year_id: updatedVehicle.year_id,
-              fuel_acronym: enrichedData.fuel_acronym,
-              vehicle_type: updatedVehicle.vehicle_type,
-            },
-          },
-          create: {
-            brand_code: updatedVehicle.fipe_brand_code,
-            model_code: updatedVehicle.fipe_model_code,
-            year_id: updatedVehicle.year_id,
-            fuel_acronym: enrichedData.fuel_acronym,
-            vehicle_type: updatedVehicle.vehicle_type,
-            fipe_value: enrichedData.current_fipe_value,
-            brand_name: enrichedData.brand_name,
-            model_name: enrichedData.model_name,
-            model_year: enrichedData.display_year,
-            fuel_name: enrichedData.display_fuel,
-            code_fipe: enrichedData.code_fipe,
-            reference_month: enrichedData.reference_month,
-          },
-          update: {
-            fipe_value: enrichedData.current_fipe_value,
-            brand_name: enrichedData.brand_name,
-            model_name: enrichedData.model_name,
-            model_year: enrichedData.display_year,
-            fuel_name: enrichedData.display_fuel,
-            code_fipe: enrichedData.code_fipe,
-            reference_month: enrichedData.reference_month,
-            updated_at: new Date(),
-          },
-        })
-      }
-
       return res.send({
-        data: {
-          ...updatedVehicle,
-          current_fipe_value: enrichedData?.current_fipe_value,
-          fipe_info: enrichedData
-            ? {
-                code_fipe: enrichedData.code_fipe,
-                reference_month: enrichedData.reference_month,
-                price:
-                `R$ ${enrichedData.current_fipe_value.toLocaleString('pt-BR')}`,
-              }
-            : undefined,
-        },
+        data: vehicle,
         message: 'Veículo atualizado com sucesso',
       })
     } catch (error) {
-      console.error('❌ Erro ao atualizar veículo:', error)
+      console.error('Erro ao atualizar veículo:', error)
 
       if (error instanceof z.ZodError) {
         return res.status(400).send({
@@ -657,8 +538,66 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         })
       }
 
-      return res.status(400).send({
+      return res.status(500).send({
         error: 'Erro ao atualizar veículo',
+        details: error instanceof Error
+          ? error.message
+          : 'Erro desconhecido',
+      })
+    }
+  })
+
+  // GET /vehicles/:id - Obter veículo por ID
+  app.get('/vehicles/:id', async (req, res) => {
+    await authenticate(req, res)
+
+    try {
+      const { id } = getVehicleParamsSchema.parse(req.params)
+
+      console.log(`Buscando veículo: ${id}`)
+
+      const vehicle = await prisma.vehicle.findUnique({
+        where: { id },
+        include: {
+          ownerships: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  profile: true,
+                },
+              },
+            },
+          },
+        },
+      })
+
+      if (!vehicle) {
+        return res.status(404).send({
+          error: 'Veículo não encontrado',
+        })
+      }
+
+      console.log(`Veículo encontrado: ${vehicle.license_plate}`)
+
+      return res.send({
+        data: vehicle,
+        message: 'Veículo encontrado com sucesso',
+      })
+    } catch (error) {
+      console.error('Erro ao buscar veículo:', error)
+
+      if (error instanceof z.ZodError) {
+        return res.status(400).send({
+          error: 'ID inválido',
+          details: error.errors,
+        })
+      }
+
+      return res.status(500).send({
+        error: 'Erro ao buscar veículo',
         details: error instanceof Error
           ? error.message
           : 'Erro desconhecido',
@@ -673,35 +612,48 @@ export async function vehiclesRoutes(app: FastifyInstance) {
     try {
       const { id } = getVehicleParamsSchema.parse(req.params)
 
-      // Verificar se veículo existe
+      console.log(`Deletando veículo: ${id}`)
+
+      // Verificar se o veículo existe
       const existingVehicle = await prisma.vehicle.findUnique({
         where: { id },
-        include: { ownerships: true },
+        include: {
+          ownerships: true,
+        },
       })
 
       if (!existingVehicle) {
-        return res.status(404).send({ error: 'Veículo não encontrado' })
-      }
-
-      // Verificar se tem proprietários
-      if (existingVehicle.ownerships.length > 0) {
-        return res.status(400).send({
-          error: 'Não é possível deletar veículo com proprietários',
-          message: 'Remova todos os proprietários antes de deletar o veículo',
+        return res.status(404).send({
+          error: 'Veículo não encontrado',
         })
       }
 
+      // Deletar o veículo (cascade vai deletar as participações)
       await prisma.vehicle.delete({
         where: { id },
       })
 
-      console.log(`✅ Veículo ${existingVehicle.license_plate} deletado`)
+      console.log(
+        `Veículo ${existingVehicle.license_plate} deletado com sucesso ` +
+        `(${existingVehicle.ownerships.length} participações removidas)`,
+      )
 
       return res.send({
-        message: 'Veículo deletado com sucesso',
+        message:
+          `Veículo ${existingVehicle.license_plate} deletado com sucesso`,
+        deleted_ownerships: existingVehicle.ownerships.length,
       })
     } catch (error) {
-      return res.status(400).send({
+      console.error('Erro ao deletar veículo:', error)
+
+      if (error instanceof z.ZodError) {
+        return res.status(400).send({
+          error: 'ID inválido',
+          details: error.errors,
+        })
+      }
+
+      return res.status(500).send({
         error: 'Erro ao deletar veículo',
         details: error instanceof Error
           ? error.message
@@ -710,75 +662,77 @@ export async function vehiclesRoutes(app: FastifyInstance) {
     }
   })
 
-  // POST /vehicles/:id/owners - Adicionar proprietário ao veículo
-  app.post('/vehicles/:id/owners', async (req, res) => {
+  // POST /vehicles/:id/ownership - Adicionar proprietário ao veículo
+  app.post('/vehicles/:id/ownership', async (req, res) => {
     await authenticate(req, res)
 
     try {
       const { id } = getVehicleParamsSchema.parse(req.params)
-      const { userId, ownershipPercentage } = addOwnershipSchema.parse(req.body)
+      const ownershipData = addOwnershipSchema.parse(req.body)
 
-      console.log(
-        `👥 Adicionando proprietário ${userId} ao veículo ${id} com ` +
-        `${ownershipPercentage}%`,
-      )
+      console.log(`Adicionando participação ao veículo ${id}:`, ownershipData)
 
-      // Verificar se veículo existe
+      // Verificar se o veículo existe
       const vehicle = await prisma.vehicle.findUnique({
         where: { id },
-        include: { ownerships: true },
       })
 
       if (!vehicle) {
-        return res.status(404).send({ error: 'Veículo não encontrado' })
+        return res.status(404).send({
+          error: 'Veículo não encontrado',
+        })
       }
 
-      // Verificar se usuário existe
+      // Verificar se o usuário existe
       const user = await prisma.user.findUnique({
-        where: { id: userId },
+        where: { id: ownershipData.userId },
       })
 
       if (!user) {
-        return res.status(404).send({ error: 'Usuário não encontrado' })
+        return res.status(404).send({
+          error: 'Usuário não encontrado',
+        })
       }
 
-      // Verificar se já existe ownership para este usuário neste veículo
+      // Verificar se já existe participação deste usuário neste veículo
       const existingOwnership = await prisma.vehicleOwnership.findUnique({
         where: {
           vehicle_id_user_id: {
             vehicle_id: id,
-            user_id: userId,
+            user_id: ownershipData.userId,
           },
         },
       })
 
       if (existingOwnership) {
         return res.status(400).send({
-          error: 'Este usuário já possui participação neste veículo',
+          error: 'Usuário já possui participação neste veículo',
         })
       }
 
-      // Calcular participação total atual
-      const currentTotalOwnership = vehicle.ownerships.reduce(
-        (sum, ownership) => sum + Number(ownership.ownership_percentage),
-        0,
-      )
+      // Verificar se a soma das participações não ultrapassa 100%
+      const totalOwnership = await prisma.vehicleOwnership.aggregate({
+        where: { vehicle_id: id },
+        _sum: { ownership_percentage: true },
+      })
 
-      // Verificar se não ultrapassaria 100%
-      if (currentTotalOwnership + ownershipPercentage > 100) {
+      const currentTotal = Number(totalOwnership._sum.ownership_percentage || 0)
+      const newTotal = currentTotal + ownershipData.ownershipPercentage
+
+      if (newTotal > 100) {
         return res.status(400).send({
-          error: 'Participação excederia 100%',
-          currentTotal: currentTotalOwnership,
-          remaining: 100 - currentTotalOwnership,
-          requested: ownershipPercentage,
+          error:
+            `A soma das participações seria ${newTotal}%, ultrapassando ` +
+            `100%. Participação atual total: ${currentTotal}%`,
         })
       }
 
-      const newOwnership = await prisma.vehicleOwnership.create({
+      // Criar participação
+      const ownership = await prisma.vehicleOwnership.create({
         data: {
           vehicle_id: id,
-          user_id: userId,
-          ownership_percentage: ownershipPercentage,
+          user_id: ownershipData.userId,
+          ownership_percentage: ownershipData.ownershipPercentage,
         },
         include: {
           user: {
@@ -793,13 +747,20 @@ export async function vehiclesRoutes(app: FastifyInstance) {
       })
 
       console.log(
-        `✅ Proprietário ${user.name} adicionado com ${ownershipPercentage}%`)
+        `Participação criada: ${user.name} - ` +
+        `${ownershipData.ownershipPercentage}% do veículo ` +
+        `${vehicle.license_plate}`,
+      )
 
       return res.status(201).send({
-        data: formatOwnershipResponse(newOwnership),
-        message: 'Proprietário adicionado com sucesso',
+        data: ownership,
+        message:
+          `Participação de ${ownershipData.ownershipPercentage}% adicionada ` +
+          `para ${user.name}`,
       })
     } catch (error) {
+      console.error('Erro ao adicionar participação:', error)
+
       if (error instanceof z.ZodError) {
         return res.status(400).send({
           error: 'Dados inválidos',
@@ -807,8 +768,8 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         })
       }
 
-      return res.status(400).send({
-        error: 'Erro ao adicionar proprietário',
+      return res.status(500).send({
+        error: 'Erro ao adicionar participação',
         details: error instanceof Error
           ? error.message
           : 'Erro desconhecido',
@@ -816,15 +777,24 @@ export async function vehiclesRoutes(app: FastifyInstance) {
     }
   })
 
-  // PUT /vehicles/:id/owners/:userId - Atualizar participação
-  app.put('/vehicles/:id/owners/:userId', async (req, res) => {
+  // PUT /vehicles/:id/ownership/:userId - Alterar participação do veículo
+  app.put('/vehicles/:id/ownership/:userId', async (req, res) => {
     await authenticate(req, res)
 
     try {
-      const { id, userId } = req.params as { id: string; userId: string }
-      const { ownershipPercentage } = updateOwnershipSchema.parse(req.body)
+      const { id, userId } = z.object({
+        id: z.string().uuid(),
+        userId: z.string().uuid(),
+      }).parse(req.params)
 
-      // Verificar se ownership existe
+      const ownershipData = updateOwnershipSchema.parse(req.body)
+
+      console.log(
+        `Alterando participação do usuário ${userId} no veículo ${id}:`,
+        ownershipData,
+      )
+
+      // Verificar se a participação existe
       const existingOwnership = await prisma.vehicleOwnership.findUnique({
         where: {
           vehicle_id_user_id: {
@@ -832,33 +802,39 @@ export async function vehiclesRoutes(app: FastifyInstance) {
             user_id: userId,
           },
         },
+        include: {
+          user: true,
+          vehicle: true,
+        },
       })
 
       if (!existingOwnership) {
-        return res.status(404).send({ error: 'Participação não encontrada' })
-      }
-
-      // Calcular participação total sem a atual
-      const vehicle = await prisma.vehicle.findUnique({
-        where: { id },
-        include: { ownerships: true },
-      })
-
-      const otherOwnershipsTotal = vehicle!.ownerships
-        .filter(o => o.user_id !== userId)
-        .reduce(
-          (sum, ownership) => sum + Number(ownership.ownership_percentage), 0)
-
-      // Verificar se não ultrapassaria 100%
-      if (otherOwnershipsTotal + ownershipPercentage > 100) {
-        return res.status(400).send({
-          error: 'Participação excederia 100%',
-          otherOwnersTotal: otherOwnershipsTotal,
-          remaining: 100 - otherOwnershipsTotal,
-          requested: ownershipPercentage,
+        return res.status(404).send({
+          error: 'Participação não encontrada',
         })
       }
 
+      // Verificar se a nova participação não faz ultrapassar 100%
+      const totalOwnership = await prisma.vehicleOwnership.aggregate({
+        where: {
+          vehicle_id: id,
+          user_id: { not: userId }, // Excluir o usuário atual do cálculo
+        },
+        _sum: { ownership_percentage: true },
+      })
+
+      const othersTotal = Number(totalOwnership._sum.ownership_percentage || 0)
+      const newTotal = othersTotal + ownershipData.ownershipPercentage
+
+      if (newTotal > 100) {
+        return res.status(400).send({
+          error:
+            `A nova participação resultaria em ${newTotal}%, ultrapassando ` +
+            `100%. Participação dos outros proprietários: ${othersTotal}%`,
+        })
+      }
+
+      // Atualizar participação
       const updatedOwnership = await prisma.vehicleOwnership.update({
         where: {
           vehicle_id_user_id: {
@@ -866,7 +842,9 @@ export async function vehiclesRoutes(app: FastifyInstance) {
             user_id: userId,
           },
         },
-        data: { ownership_percentage: ownershipPercentage },
+        data: {
+          ownership_percentage: ownershipData.ownershipPercentage,
+        },
         include: {
           user: {
             select: {
@@ -879,11 +857,21 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         },
       })
 
+      console.log(
+        `Participação atualizada: ${existingOwnership.user.name} - ` +
+        `${Number(existingOwnership.ownership_percentage)}% → ` +
+        `${ownershipData.ownershipPercentage}% no veículo ` +
+        `${existingOwnership.vehicle.license_plate}`,
+      )
+
       return res.send({
-        data: formatOwnershipResponse(updatedOwnership),
-        message: 'Participação atualizada com sucesso',
+        data: updatedOwnership,
+        message:
+          `Participação atualizada para ${ownershipData.ownershipPercentage}%`,
       })
     } catch (error) {
+      console.error('Erro ao alterar participação:', error)
+
       if (error instanceof z.ZodError) {
         return res.status(400).send({
           error: 'Dados inválidos',
@@ -891,8 +879,8 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         })
       }
 
-      return res.status(400).send({
-        error: 'Erro ao atualizar participação',
+      return res.status(500).send({
+        error: 'Erro ao alterar participação',
         details: error instanceof Error
           ? error.message
           : 'Erro desconhecido',
@@ -900,14 +888,20 @@ export async function vehiclesRoutes(app: FastifyInstance) {
     }
   })
 
-  // DELETE /vehicles/:id/owners/:userId - Remover proprietário
-  app.delete('/vehicles/:id/owners/:userId', async (req, res) => {
+  // DELETE /vehicles/:id/ownership/:userId - Remover proprietário do veículo
+  app.delete('/vehicles/:id/ownership/:userId', async (req, res) => {
     await authenticate(req, res)
 
     try {
-      const { id, userId } = req.params as { id: string; userId: string }
+      const { id, userId } = z.object({
+        id: z.string().uuid(),
+        userId: z.string().uuid(),
+      }).parse(req.params)
 
-      // Verificar se ownership existe
+      console.log(
+        `Removendo participação do usuário ${userId} no veículo ${id}`)
+
+      // Verificar se a participação existe
       const existingOwnership = await prisma.vehicleOwnership.findUnique({
         where: {
           vehicle_id_user_id: {
@@ -915,12 +909,19 @@ export async function vehiclesRoutes(app: FastifyInstance) {
             user_id: userId,
           },
         },
+        include: {
+          user: true,
+          vehicle: true,
+        },
       })
 
       if (!existingOwnership) {
-        return res.status(404).send({ error: 'Participação não encontrada' })
+        return res.status(404).send({
+          error: 'Participação não encontrada',
+        })
       }
 
+      // Remover participação
       await prisma.vehicleOwnership.delete({
         where: {
           vehicle_id_user_id: {
@@ -930,115 +931,28 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         },
       })
 
-      return res.send({
-        message: 'Proprietário removido com sucesso',
-      })
-    } catch (error) {
-      return res.status(400).send({
-        error: 'Erro ao remover proprietário',
-        details: error instanceof Error
-          ? error.message
-          : 'Erro desconhecido',
-      })
-    }
-  })
-
-  // GET /vehicles/stats - Estatísticas dos veículos
-  app.get('/vehicles/stats', async (req, res) => {
-    await authenticate(req, res)
-
-    try {
-      const [
-        totalVehicles,
-        vehiclesByType,
-        vehiclesWithOwners,
-        vehiclesWithoutOwners,
-        companyVehicles,
-        personalVehicles,
-        vehiclesByYear,
-        vehiclesByFuel,
-      ] = await Promise.all([
-        prisma.vehicle.count(),
-        prisma.vehicle.groupBy({
-          by: ['vehicle_type'],
-          _count: { id: true },
-        }),
-        prisma.vehicle.count({
-          where: {
-            ownerships: {
-              some: {},
-            },
-          },
-        }),
-        prisma.vehicle.count({
-          where: {
-            ownerships: {
-              none: {},
-            },
-          },
-        }),
-        prisma.vehicle.count({
-          where: { is_company_vehicle: true },
-        }),
-        prisma.vehicle.count({
-          where: { is_company_vehicle: false },
-        }),
-        prisma.vehicle.groupBy({
-          by: ['display_year'],
-          _count: { id: true },
-          orderBy: { display_year: 'desc' },
-        }),
-        prisma.vehicle.groupBy({
-          by: ['fuel_acronym'],
-          _count: { id: true },
-        }),
-      ])
-
-      // Processar dados para formato mais legível
-      const vehiclesByTypeFormatted = vehiclesByType.reduce((acc, item) => {
-        acc[item.vehicle_type] = item._count.id
-        return acc
-      }, {} as Record<string, number>)
-
-      const vehiclesByYearFormatted = vehiclesByYear.reduce((acc, item) => {
-        if (item.display_year) {
-          acc[item.display_year] = item._count.id
-        }
-        return acc
-      }, {} as Record<number, number>)
-
-      const vehiclesByFuelFormatted = vehiclesByFuel.reduce((acc, item) => {
-        if (item.fuel_acronym) {
-          acc[item.fuel_acronym] = item._count.id
-        }
-        return acc
-      }, {} as Record<string, number>)
+      console.log(
+        `Participação removida: ${existingOwnership.user.name} ` +
+        `(${Number(existingOwnership.ownership_percentage)}%) do veículo ` +
+        `${existingOwnership.vehicle.license_plate}`,
+      )
 
       return res.send({
-        data: {
-          total_vehicles: totalVehicles,
-          vehicles_with_owners: vehiclesWithOwners,
-          vehicles_without_owners: vehiclesWithoutOwners,
-          company_vehicles: companyVehicles,
-          personal_vehicles: personalVehicles,
-          vehicles_by_type: vehiclesByTypeFormatted,
-          vehicles_by_year: vehiclesByYearFormatted,
-          vehicles_by_fuel: vehiclesByFuelFormatted,
-          ownership_stats: {
-            with_owners_percentage: totalVehicles > 0
-              ? Math.round((vehiclesWithOwners / totalVehicles) * 100)
-              : 0,
-            company_percentage: totalVehicles > 0
-              ? Math.round((companyVehicles / totalVehicles) * 100)
-              : 0,
-          },
-        },
-        message: 'Estatísticas de veículos calculadas',
-        calculated_at: new Date().toISOString(),
+        message:
+          `Participação de ${existingOwnership.user.name} removida com sucesso`,
       })
     } catch (error) {
+      console.error('Erro ao remover participação:', error)
+
+      if (error instanceof z.ZodError) {
+        return res.status(400).send({
+          error: 'IDs inválidos',
+          details: error.errors,
+        })
+      }
+
       return res.status(500).send({
-        error: 'Erro ao buscar estatísticas dos veículos',
+        error: 'Erro ao remover participação',
         details: error instanceof Error
           ? error.message
           : 'Erro desconhecido',

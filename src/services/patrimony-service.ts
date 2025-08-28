@@ -3,13 +3,12 @@ import { fipeAPI, VehicleType as ApiVehicleType } from '../lib/fipe-api'
 
 const prisma = new PrismaClient()
 
-// Interface para o veículo com includes (CORRIGIDA PARA NOVOS CAMPOS)
 interface VehicleWithDetails {
   id: string
   fipe_brand_code: number
   fipe_model_code: number
   year_id: string
-  fuel_acronym: string
+  fuel_acronym: string | null
   vehicle_type: VehicleType
   license_plate: string
   is_company_vehicle: boolean
@@ -25,7 +24,7 @@ interface UserPatrimony {
   user_profile: UserProfile
   total_patrimony: number
   personal_vehicles_value: number
-  company_vehicles_value: number
+  company_participation_value: number
   vehicles: Array<{
     vehicle_id: string
     license_plate: string
@@ -53,9 +52,141 @@ interface CompanyPatrimonyBreakdown {
 }
 
 export class PatrimonyService {
-  // Calcular patrimônio de um usuário específico (sócio ou investidor)
+  private async getVehicleFipeValue(
+    vehicle: VehicleWithDetails): Promise<number> {
+    try {
+      console.log(`Buscando valor FIPE para ${vehicle.license_plate}...`)
+
+      if (!vehicle.fipe_brand_code || !vehicle.fipe_model_code ||
+        !vehicle.year_id) {
+        console.warn(`Dados FIPE incompletos para ${vehicle.license_plate}`)
+        return 0
+      }
+
+      // Tratar fuel_acronym NULL
+      let fuelAcronym = vehicle.fuel_acronym
+      if (!fuelAcronym) {
+        fuelAcronym = '1' // Gasolina como padrão
+        console.log(
+          `fuel_acronym NULL para ${vehicle.license_plate}, usando padrão: ` +
+          `${fuelAcronym}`,
+        )
+      }
+
+      // Verificar cache
+      const cachedValue = await prisma.fipeCache.findUnique({
+        where: {
+          brand_code_model_code_year_id_fuel_acronym_vehicle_type: {
+            brand_code: vehicle.fipe_brand_code,
+            model_code: vehicle.fipe_model_code,
+            year_id: vehicle.year_id,
+            fuel_acronym: fuelAcronym,
+            vehicle_type: vehicle.vehicle_type,
+          },
+        },
+      })
+
+      if (cachedValue) {
+        console.log(
+          `Cache encontrado para ${vehicle.license_plate}: R$ ` +
+          `${Number(cachedValue.fipe_value).toLocaleString('pt-BR')}`,
+        )
+        return Number(cachedValue.fipe_value)
+      }
+
+      console.log(`Buscando na API FIPE para ${vehicle.license_plate}...`)
+
+      const apiVehicleType: ApiVehicleType =
+        vehicle.vehicle_type === VehicleType.cars
+          ? 'cars'
+          : 'motorcycles'
+      const fipeData = await fipeAPI.getValue(
+        apiVehicleType,
+        vehicle.fipe_brand_code,
+        vehicle.fipe_model_code,
+        vehicle.year_id,
+      )
+
+      if (!fipeData?.price) {
+        console.warn(
+          `Valor FIPE não encontrado na API para ${vehicle.license_plate}`)
+
+        // Buscar último valor conhecido
+        const lastKnownValue = await prisma.fipeCache.findFirst({
+          where: {
+            brand_code: vehicle.fipe_brand_code,
+            model_code: vehicle.fipe_model_code,
+            vehicle_type: vehicle.vehicle_type,
+          },
+          orderBy: { created_at: 'desc' },
+        })
+
+        if (lastKnownValue) {
+          console.log(
+            'Usando último valor conhecido: R$ ' +
+            `${Number(lastKnownValue.fipe_value).toLocaleString('pt-BR')}`,
+          )
+          return Number(lastKnownValue.fipe_value)
+        }
+
+        return 0
+      }
+
+      const fipeValue =
+        Number(fipeData.price.replace(/[R$\s.]/g, '').replace(',', '.'))
+
+      // Salvar no cache
+      await prisma.fipeCache.create({
+        data: {
+          brand_code: vehicle.fipe_brand_code,
+          model_code: vehicle.fipe_model_code,
+          year_id: vehicle.year_id,
+          fuel_acronym: fuelAcronym,
+          vehicle_type: vehicle.vehicle_type,
+          fipe_value: fipeValue,
+          brand_name: fipeData.brand || null,
+          model_name: fipeData.model || null,
+          model_year: fipeData.modelYear || null,
+          fuel_name: fipeData.fuel || null,
+          code_fipe: fipeData.codeFipe || null,
+          reference_month: fipeData.referenceMonth || 'N/A',
+        },
+      })
+
+      console.log(
+        `Valor FIPE obtido e cacheado: ${vehicle.license_plate} = R$ ` +
+        `${fipeValue.toLocaleString('pt-BR')}`,
+      )
+      return fipeValue
+    } catch (error) {
+      console.error(
+        `Erro ao obter valor FIPE para ${vehicle.license_plate}:`, error)
+
+      // Em caso de erro, buscar último valor conhecido
+      try {
+        const lastKnownValue = await prisma.fipeCache.findFirst({
+          where: {
+            brand_code: vehicle.fipe_brand_code,
+            model_code: vehicle.fipe_model_code,
+            vehicle_type: vehicle.vehicle_type,
+          },
+          orderBy: { created_at: 'desc' },
+        })
+
+        if (lastKnownValue) {
+          console.log(`Erro na API, usando valor em cache: R$ ${Number(lastKnownValue.fipe_value).toLocaleString('pt-BR')}`)
+          return Number(lastKnownValue.fipe_value)
+        }
+      } catch (cacheError) {
+        console.error('Erro ao buscar cache:', cacheError)
+      }
+
+      return 0
+    }
+  }
+
   async calculateUserPatrimony(userId: string): Promise<UserPatrimony> {
-    console.log(`💰 Calculando patrimônio para usuário ${userId}`)
+    console.log(`Calculando patrimônio para usuário ${userId}`)
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -72,62 +203,95 @@ export class PatrimonyService {
       throw new Error('User not found')
     }
 
-    console.log(`👤 Usuário encontrado: ${user.name} (${user.profile})`)
-    console.log(
-      `🚗 Veículos com participação: ${user.vehicle_ownerships.length}`)
+    console.log(`Usuário encontrado: ${user.name} (${user.profile})`)
 
     const vehicles = []
-    let totalPatrimony = 0
     let personalVehiclesValue = 0
-    let companyVehiclesValue = 0
+    let companyParticipationValue = 0
 
+    // 1. CALCULAR VEÍCULOS PESSOAIS (usando vehicle_ownerships)
     for (const ownership of user.vehicle_ownerships) {
-      console.log(`🔍 Processando veículo ${ownership.vehicle.license_plate}...`)
+      const vehicle = ownership.vehicle
 
-      const fipeValue = await this.getVehicleFipeValue(ownership.vehicle)
-      const userValue = (
-        fipeValue * Number(ownership.ownership_percentage)) / 100
+      // Só processar veículos pessoais aqui
+      if (!vehicle.is_company_vehicle) {
+        console.log(`Processando veículo pessoal: ${vehicle.license_plate}`)
 
-      // ✅ CORREÇÃO: Separar veículos pessoais dos da empresa
-      if (ownership.vehicle.is_company_vehicle) {
-        companyVehiclesValue += userValue
-      } else {
+        const fipeValue = await this.getVehicleFipeValue(vehicle)
+        const userValue = (fipeValue * Number(ownership.ownership_percentage)) / 100
         personalVehiclesValue += userValue
+
+        vehicles.push({
+          vehicle_id: vehicle.id,
+          license_plate: vehicle.license_plate,
+          ownership_percentage: Number(ownership.ownership_percentage),
+          fipe_value: fipeValue,
+          user_value: userValue,
+          vehicle_type: vehicle.vehicle_type,
+          is_company_vehicle: false,
+          brand_name: vehicle.brand_name,
+          model_name: vehicle.model_name,
+          display_year: vehicle.display_year,
+          display_fuel: vehicle.display_fuel,
+        })
+
+        console.log(`${vehicle.license_plate} (pessoal): R$ ${fipeValue.toLocaleString('pt-BR')} x ${ownership.ownership_percentage}% = R$ ${userValue.toLocaleString('pt-BR')}`)
       }
-
-      vehicles.push({
-        vehicle_id: ownership.vehicle.id,
-        license_plate: ownership.vehicle.license_plate,
-        ownership_percentage: Number(ownership.ownership_percentage),
-        fipe_value: fipeValue,
-        user_value: userValue,
-        vehicle_type: ownership.vehicle.vehicle_type,
-        is_company_vehicle: ownership.vehicle.is_company_vehicle,
-        brand_name: ownership.vehicle.brand_name,
-        model_name: ownership.vehicle.model_name,
-        display_year: ownership.vehicle.display_year,
-        display_fuel: ownership.vehicle.display_fuel,
-      })
-
-      totalPatrimony += userValue
-
-      console.log(
-        `${ownership.vehicle.license_plate}: ` +
-        `R$ ${fipeValue.toLocaleString('pt-BR')} (` +
-        `${ownership.ownership_percentage}% = ` +
-        `R$ ${userValue.toLocaleString('pt-BR')}) ` +
-        `[${ownership.vehicle.is_company_vehicle
-? 'EMPRESA'
-: 'PESSOAL'}]`,
-      )
     }
 
-    console.log(
-      `✅ Patrimônio total de ${user.name}: ` +
-      `R$ ${totalPatrimony.toLocaleString('pt-BR')} ` +
-      `(Pessoal: R$ ${personalVehiclesValue.toLocaleString('pt-BR')}, ` +
-      `Empresa: R$ ${companyVehiclesValue.toLocaleString('pt-BR')})`,
-    )
+    // 2. CALCULAR PARTICIPAÇÃO NOS VEÍCULOS DA EMPRESA (só para sócios)
+    if (user.profile === UserProfile.PARTNER) {
+      // Buscar total de sócios ativos
+      const totalActivePartners = await prisma.user.count({
+        where: {
+          profile: UserProfile.PARTNER,
+          is_active: true,
+        },
+      })
+
+      // Buscar todos os veículos da empresa
+      const companyVehicles = await prisma.vehicle.findMany({
+        where: { is_company_vehicle: true },
+      })
+
+      console.log(`Total de sócios ativos: ${totalActivePartners}`)
+      console.log(`Veículos da empresa: ${companyVehicles.length}`)
+
+      // Calcular participação igual para todos os sócios
+      const partnerParticipationPercentage = totalActivePartners > 0
+        ? 100 / totalActivePartners
+        : 0
+
+      for (const vehicle of companyVehicles) {
+        console.log(`Processando veículo da empresa: ${vehicle.license_plate}`)
+
+        const fipeValue = await this.getVehicleFipeValue(vehicle)
+        const userValue = (fipeValue * partnerParticipationPercentage) / 100
+        companyParticipationValue += userValue
+
+        vehicles.push({
+          vehicle_id: vehicle.id,
+          license_plate: vehicle.license_plate,
+          ownership_percentage: partnerParticipationPercentage,
+          fipe_value: fipeValue,
+          user_value: userValue,
+          vehicle_type: vehicle.vehicle_type,
+          is_company_vehicle: true,
+          brand_name: vehicle.brand_name,
+          model_name: vehicle.model_name,
+          display_year: vehicle.display_year,
+          display_fuel: vehicle.display_fuel,
+        })
+
+        console.log(`${vehicle.license_plate} (empresa): R$ ${fipeValue.toLocaleString('pt-BR')} x ${partnerParticipationPercentage.toFixed(2)}% = R$ ${userValue.toLocaleString('pt-BR')}`)
+      }
+    }
+
+    const totalPatrimony = personalVehiclesValue + companyParticipationValue
+
+    console.log(`Patrimônio total de ${user.name}: R$ ${totalPatrimony.toLocaleString('pt-BR')}`)
+    console.log(`- Veículos pessoais: R$ ${personalVehiclesValue.toLocaleString('pt-BR')}`)
+    console.log(`- Participação na empresa: R$ ${companyParticipationValue.toLocaleString('pt-BR')}`)
 
     return {
       user_id: user.id,
@@ -135,35 +299,77 @@ export class PatrimonyService {
       user_profile: user.profile,
       total_patrimony: totalPatrimony,
       personal_vehicles_value: personalVehiclesValue,
-      company_vehicles_value: companyVehiclesValue,
+      company_participation_value: companyParticipationValue,
       vehicles,
     }
   }
 
-  // Calcular patrimônio de todos os sócios
+  async calculateCompanyPatrimony(): Promise<CompanyPatrimonyBreakdown> {
+    console.log('Calculando patrimônio da empresa...')
+
+    const companyVehicles = await prisma.vehicle.findMany({
+      where: { is_company_vehicle: true },
+    })
+
+    console.log(`Veículos da empresa encontrados: ${companyVehicles.length}`)
+
+    let totalCompanyPatrimony = 0
+
+    for (const vehicle of companyVehicles) {
+      console.log(`Processando veículo da empresa: ${vehicle.license_plate}`)
+      const fipeValue = await this.getVehicleFipeValue(vehicle)
+      totalCompanyPatrimony += fipeValue
+      console.log(`${vehicle.license_plate}: R$ ${fipeValue.toLocaleString('pt-BR')}`)
+    }
+
+    // Buscar todos os sócios ativos para distribuir a participação
+    const activePartners = await prisma.user.findMany({
+      where: {
+        profile: UserProfile.PARTNER,
+        is_active: true,
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    })
+
+    const participationPercentage = activePartners.length > 0
+      ? 100 / activePartners.length
+      : 0
+    const valuePerPartner = totalCompanyPatrimony * (participationPercentage / 100)
+
+    const partners = activePartners.map(partner => ({
+      user_id: partner.id,
+      user_name: partner.name,
+      participation_percentage: participationPercentage,
+      patrimony_value: valuePerPartner,
+    }))
+
+    console.log(`Patrimônio total da empresa: R$ ${totalCompanyPatrimony.toLocaleString('pt-BR')}`)
+    console.log(`Participação por sócio (${participationPercentage.toFixed(2)}%): R$ ${valuePerPartner.toLocaleString('pt-BR')}`)
+
+    return {
+      total_company_patrimony: totalCompanyPatrimony,
+      vehicles_count: companyVehicles.length,
+      partners,
+    }
+  }
+
   async calculateAllPartnersPatrimony(): Promise<UserPatrimony[]> {
-    console.log('🤝 Calculando patrimônio de todos os sócios...')
+    console.log('Calculando patrimônio de todos os sócios...')
 
     const partners = await prisma.user.findMany({
       where: {
         profile: UserProfile.PARTNER,
         is_active: true,
       },
-      include: {
-        vehicle_ownerships: {
-          include: {
-            vehicle: true,
-          },
-        },
-      },
     })
-
-    console.log(`📊 Encontrados ${partners.length} sócios ativos`)
 
     const partnersPatrimony: UserPatrimony[] = []
 
     for (const partner of partners) {
-      console.log(`\n🔄 Processando sócio: ${partner.name}`)
+      console.log(`\nProcessando sócio: ${partner.name}`)
       const patrimony = await this.calculateUserPatrimony(partner.id)
       partnersPatrimony.push(patrimony)
     }
@@ -171,30 +377,20 @@ export class PatrimonyService {
     return partnersPatrimony
   }
 
-  // Calcular patrimônio de todos os investidores
   async calculateAllInvestorsPatrimony(): Promise<UserPatrimony[]> {
-    console.log('💼 Calculando patrimônio de todos os investidores...')
+    console.log('Calculando patrimônio de todos os investidores...')
 
     const investors = await prisma.user.findMany({
       where: {
         profile: UserProfile.INVESTOR,
         is_active: true,
       },
-      include: {
-        vehicle_ownerships: {
-          include: {
-            vehicle: true,
-          },
-        },
-      },
     })
-
-    console.log(`📊 Encontrados ${investors.length} investidores ativos`)
 
     const investorsPatrimony: UserPatrimony[] = []
 
     for (const investor of investors) {
-      console.log(`\n🔄 Processando investidor: ${investor.name}`)
+      console.log(`\nProcessando investidor: ${investor.name}`)
       const patrimony = await this.calculateUserPatrimony(investor.id)
       investorsPatrimony.push(patrimony)
     }
@@ -202,89 +398,6 @@ export class PatrimonyService {
     return investorsPatrimony
   }
 
-  // Calcular patrimônio consolidado da empresa (apenas veículos da empresa)
-  async calculateCompanyPatrimony(): Promise<CompanyPatrimonyBreakdown> {
-    console.log('🏢 Calculando patrimônio da empresa...')
-
-    // Buscar veículos da empresa
-    const companyVehicles = await prisma.vehicle.findMany({
-      where: { is_company_vehicle: true },
-      include: {
-        ownerships: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                profile: true,
-              },
-            },
-          },
-        },
-      },
-    })
-
-    console.log(`🚗 Veículos da empresa encontrados: ${companyVehicles.length}`)
-
-    let totalCompanyPatrimony = 0
-    const partnersParticipation = new Map<string, {
-      user_id: string
-      user_name: string
-      patrimony_value: number
-    }>()
-
-    // Calcular valor de cada veículo da empresa
-    for (const vehicle of companyVehicles) {
-      console.log(`🔍 Processando veículo da empresa: ${vehicle.license_plate}`)
-
-      const fipeValue = await this.getVehicleFipeValue(vehicle)
-      totalCompanyPatrimony += fipeValue
-
-      // Distribuir valor entre os sócios conforme participação
-      for (const ownership of vehicle.ownerships) {
-        const userValue = (
-          fipeValue * Number(ownership.ownership_percentage)) / 100
-
-        if (partnersParticipation.has(ownership.user_id)) {
-          partnersParticipation.get(ownership.user_id)!.patrimony_value +=
-            userValue
-        } else {
-          partnersParticipation.set(ownership.user_id, {
-            user_id: ownership.user_id,
-            user_name: ownership.user.name,
-            patrimony_value: userValue,
-          })
-        }
-
-        console.log(
-          `${ownership.user.name}: ${ownership.ownership_percentage}% = ` +
-          `R$ ${userValue.toLocaleString('pt-BR')}`,
-        )
-      }
-    }
-
-    // Calcular percentual de participação de cada sócio
-    const partners = Array.from(
-      partnersParticipation.values()).map(partner => ({
-      ...partner,
-      participation_percentage: totalCompanyPatrimony > 0
-        ? (partner.patrimony_value / totalCompanyPatrimony) * 100
-        : 0,
-    }))
-
-    console.log(
-      '✅ Patrimônio total da empresa: ' +
-      `R$ ${totalCompanyPatrimony.toLocaleString('pt-BR')}`,
-    )
-
-    return {
-      total_company_patrimony: totalCompanyPatrimony,
-      vehicles_count: companyVehicles.length,
-      partners: partners.sort((a, b) => b.patrimony_value - a.patrimony_value),
-    }
-  }
-
-  // Relatório completo de patrimônio (empresa + sócios + investidores)
   async generateCompletePatrimonyReport(): Promise<{
     company: CompanyPatrimonyBreakdown
     partners: UserPatrimony[]
@@ -293,30 +406,21 @@ export class PatrimonyService {
       total_patrimony: number
       company_patrimony: number
       partners_personal_patrimony: number
-      partners_company_participation: number
       investors_patrimony: number
       total_vehicles: number
     }
   }> {
-    console.log('📊 Gerando relatório completo de patrimônio...')
+    console.log('Gerando relatório completo de patrimônio...')
 
-    const [
-      companyPatrimony,
-      partnersPatrimony,
-      investorsPatrimony,
-    ] = await Promise.all([
+    const [companyPatrimony, partnersPatrimony, investorsPatrimony] = await Promise.all([
       this.calculateCompanyPatrimony(),
       this.calculateAllPartnersPatrimony(),
       this.calculateAllInvestorsPatrimony(),
     ])
 
-    // Calcular patrimônio pessoal dos sócios (excluindo veículos da empresa)
     const partnersPersonalPatrimony = partnersPatrimony.reduce(
-      (total, partner) => total + partner.personal_vehicles_value, 0)
-
-    // ✅ NOVO: Calcular participação dos sócios nos veículos da empresa
-    const partnersCompanyParticipation = partnersPatrimony.reduce(
-      (total, partner) => total + partner.company_vehicles_value, 0)
+      (total, partner) => total + partner.personal_vehicles_value, 0,
+    )
 
     const investorsPatrimonyTotal = investorsPatrimony.reduce(
       (total, investor) => total + investor.total_patrimony, 0,
@@ -325,38 +429,19 @@ export class PatrimonyService {
     const totalVehicles = await prisma.vehicle.count()
 
     const summary = {
-      total_patrimony:
-        companyPatrimony.total_company_patrimony + partnersPersonalPatrimony +
-        investorsPatrimonyTotal,
+      total_patrimony: companyPatrimony.total_company_patrimony + partnersPersonalPatrimony + investorsPatrimonyTotal,
       company_patrimony: companyPatrimony.total_company_patrimony,
       partners_personal_patrimony: partnersPersonalPatrimony,
-      partners_company_participation: partnersCompanyParticipation, // ✅ NOVO
       investors_patrimony: investorsPatrimonyTotal,
       total_vehicles: totalVehicles,
     }
 
-    console.log('📈 Resumo do relatório:')
-    console.log(
-      '🏢 Patrimônio da empresa: ' +
-      `R$ ${summary.company_patrimony.toLocaleString('pt-BR')}`,
-    )
-    console.log(
-      '🤝 Patrimônio pessoal sócios: ' +
-      `R$ ${summary.partners_personal_patrimony.toLocaleString('pt-BR')}`,
-    )
-    console.log(
-      '📊 Participação sócios na empresa: ' +
-      `R$ ${summary.partners_company_participation.toLocaleString('pt-BR')}`,
-    )
-    console.log(
-      '💼 Patrimônio investidores: ' +
-      `R$ ${summary.investors_patrimony.toLocaleString('pt-BR')}`,
-    )
-    console.log(
-      '💰 Patrimônio total: ' +
-      `R$ ${summary.total_patrimony.toLocaleString('pt-BR')}`,
-    )
-    console.log(`🚗 Total de veículos: ${summary.total_vehicles}`)
+    console.log('Resumo do relatório:')
+    console.log(`Patrimônio da empresa: R$ ${summary.company_patrimony.toLocaleString('pt-BR')}`)
+    console.log(`Patrimônio pessoal sócios: R$ ${summary.partners_personal_patrimony.toLocaleString('pt-BR')}`)
+    console.log(`Patrimônio investidores: R$ ${summary.investors_patrimony.toLocaleString('pt-BR')}`)
+    console.log(`Patrimônio total: R$ ${summary.total_patrimony.toLocaleString('pt-BR')}`)
+    console.log(`Total de veículos: ${summary.total_vehicles}`)
 
     return {
       company: companyPatrimony,
@@ -366,99 +451,8 @@ export class PatrimonyService {
     }
   }
 
-  // Buscar valor FIPE do veículo (com cache)
-  async getVehicleFipeValue(vehicle: VehicleWithDetails): Promise<number> {
-    try {
-      // Verificar se já existe cache
-      const cachedValue = await prisma.fipeCache.findUnique({
-        where: {
-          brand_code_model_code_year_id_fuel_acronym_vehicle_type: {
-            brand_code: vehicle.fipe_brand_code,
-            model_code: vehicle.fipe_model_code,
-            year_id: vehicle.year_id,
-            fuel_acronym: vehicle.fuel_acronym,
-            vehicle_type: vehicle.vehicle_type,
-          },
-        },
-      })
-
-      if (cachedValue) {
-        console.log(
-          `💾 Cache FIPE encontrado para ${vehicle.license_plate}: ` +
-          `R$ ${Number(cachedValue.fipe_value).toLocaleString('pt-BR')}`,
-        )
-        return Number(cachedValue.fipe_value)
-      }
-
-      console.log(
-        `🌐 Buscando valor FIPE na API para ${vehicle.license_plate}...`,
-      )
-
-      // Mapear VehicleType para o formato da API
-      const apiVehicleType: ApiVehicleType =
-        vehicle.vehicle_type === VehicleType.cars
-          ? 'cars'
-          : 'motorcycles'
-
-      // Buscar na API FIPE
-      const fipeData = await fipeAPI.getValue(
-        apiVehicleType,
-        vehicle.fipe_brand_code,
-        vehicle.fipe_model_code,
-        vehicle.year_id,
-      )
-
-      if (!fipeData.price) {
-        console.warn(
-          `⚠️ Valor FIPE não encontrado para ${vehicle.license_plate}`,
-        )
-        return 0
-      }
-
-      // Parse do valor FIPE (API v2 usa formato diferente)
-      const fipeValue = Number(
-        fipeData.price.replace(/[R$\s.]/g, '').replace(',', '.'),
-      )
-
-      // Salvar no cache
-      await prisma.fipeCache.create({
-        data: {
-          brand_code: vehicle.fipe_brand_code,
-          model_code: vehicle.fipe_model_code,
-          year_id: vehicle.year_id,
-          fuel_acronym: vehicle.fuel_acronym,
-          vehicle_type: vehicle.vehicle_type,
-          fipe_value: fipeValue,
-          brand_name: fipeData.brand,
-          model_name: fipeData.model,
-          model_year: fipeData.modelYear,
-          fuel_name: fipeData.fuel,
-          code_fipe: fipeData.codeFipe,
-          reference_month: fipeData.referenceMonth,
-        },
-      })
-
-      console.log(
-        `💰 Valor FIPE obtido para ${vehicle.license_plate}: ` +
-        `R$ ${fipeValue.toLocaleString('pt-BR')} (${fipeData.referenceMonth})`,
-      )
-
-      return fipeValue
-    } catch (error) {
-      console.error(
-        `❌ Erro ao obter valor FIPE para ${vehicle.license_plate}:`,
-        error,
-      )
-      return 0
-    }
-  }
-
-  // Atualizar cache FIPE de todos os veículos
-  async refreshAllVehiclesFipeCache(): Promise<{
-    updated: number
-    errors: number
-  }> {
-    console.log('🔄 Iniciando atualização do cache FIPE...')
+  async refreshAllVehiclesFipeCache(): Promise<{ updated: number; errors: number }> {
+    console.log('Iniciando atualização do cache FIPE...')
 
     const vehicles = await prisma.vehicle.findMany()
     let updated = 0
@@ -466,38 +460,33 @@ export class PatrimonyService {
 
     for (const vehicle of vehicles) {
       try {
-        console.log(`🔄 Atualizando cache FIPE para ${vehicle.license_plate}`)
+        console.log(`Atualizando cache para ${vehicle.license_plate}...`)
 
-        // Remover cache existente
+        // Remover cache antigo
         await prisma.fipeCache.deleteMany({
           where: {
             brand_code: vehicle.fipe_brand_code,
             model_code: vehicle.fipe_model_code,
             year_id: vehicle.year_id,
-            fuel_acronym: vehicle.fuel_acronym,
             vehicle_type: vehicle.vehicle_type,
           },
         })
 
         // Buscar novo valor
-        await this.getVehicleFipeValue(vehicle)
-        updated++
+        const fipeValue = await this.getVehicleFipeValue(vehicle)
+        if (fipeValue > 0) {
+          updated++
+        }
 
-        // Delay para não sobrecarregar a API
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        // Delay para não sobrecarregar API
+        await new Promise(resolve => setTimeout(resolve, 1500))
       } catch (error) {
-        console.error(
-          `❌ Erro ao atualizar cache FIPE para ${vehicle.license_plate}:`,
-          error,
-        )
+        console.error(`Erro ao atualizar ${vehicle.license_plate}:`, error)
         errors++
       }
     }
 
-    console.log(
-      `✅ Cache FIPE atualizado: ${updated} sucessos, ${errors} erros`,
-    )
-
+    console.log(`Cache atualizado: ${updated} sucessos, ${errors} erros`)
     return { updated, errors }
   }
 }

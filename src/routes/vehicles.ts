@@ -251,7 +251,6 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         year_id: data.year_id,
         fuel_acronym: data.fuel_acronym,
         is_company_vehicle: data.is_company_vehicle,
-        purchase_date: data.purchase_date,
       })
 
       // Verificar se placa já existe
@@ -276,26 +275,82 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         })
       }
 
-      // Se display_year não foi fornecido, extrair do year_id
+      // Buscar dados FIPE se não fornecidos
+      let finalFuelAcronym = data.fuel_acronym
+      let finalDisplayFuel = data.display_fuel
+      let finalBrandName = data.brand_name
+      let finalModelName = data.model_name
+      let shouldCreateCache = false
+      let cachedFipeData: {
+        brand: string;
+        model: string;
+        fuel: string;
+        fuelAcronym: string;
+        price: string;
+        modelYear: number;
+        codeFipe: string;
+        referenceMonth: string;
+      } | null = null
+
+      if (!finalFuelAcronym || !finalDisplayFuel || !finalBrandName ||
+        !finalModelName) {
+        try {
+          console.log('Buscando dados FIPE automaticamente...')
+
+          const axios = (await import('../config/axios')).default
+          const { env } = await import('../env')
+
+          const vehicleType = data.vehicle_type
+          const fipeUrl =
+            `${env.API_FIPE_PATH}/${vehicleType}/brands/` +
+            `${data.fipe_brand_code}/models/${data.fipe_model_code}/years/` +
+            `${data.year_id}`
+
+          const response = await axios.get(fipeUrl, {
+            params: { reference: env.FIPE_REFERENCE },
+            timeout: 10000,
+          })
+
+          const fipeData = response.data
+
+          // Usar dados imediatamente
+          if (!finalFuelAcronym) finalFuelAcronym = fipeData.fuelAcronym
+          if (!finalDisplayFuel) finalDisplayFuel = fipeData.fuel
+          if (!finalBrandName) finalBrandName = fipeData.brand
+          if (!finalModelName) finalModelName = fipeData.model
+
+          // Marcar para criar cache
+          shouldCreateCache = true
+          cachedFipeData = fipeData
+
+          console.log('Dados FIPE obtidos:', {
+            brand: fipeData.brand,
+            model: fipeData.model,
+            fuel: fipeData.fuel,
+            fuelAcronym: fipeData.fuelAcronym,
+            price: fipeData.price,
+          })
+        } catch (fipeError) {
+          console.warn('Erro ao buscar dados FIPE:', fipeError)
+
+          // Fallback para fuel_acronym -> display_fuel
+          if (!finalDisplayFuel && finalFuelAcronym) {
+            const fuelMap: Record<string, string> = {
+              G: 'Gasolina', D: 'Diesel', E: 'Etanol', F: 'Flex',
+            }
+            finalDisplayFuel =
+              fuelMap[finalFuelAcronym.toUpperCase()] || finalFuelAcronym
+          }
+        }
+      }
+
+      // Extrair display_year do year_id se necessário
       let displayYear = data.display_year
       if (!displayYear && data.year_id) {
         const yearMatch = data.year_id.match(/^(\d{4})/)
         if (yearMatch) {
           displayYear = parseInt(yearMatch[1])
         }
-      }
-
-      // Se display_fuel não foi fornecido, converter do fuel_acronym
-      let displayFuel: string | undefined = data.display_fuel
-      if (!displayFuel && data.fuel_acronym) {
-        const fuelMap: Record<string, string> = {
-          G: 'Gasolina',
-          D: 'Diesel',
-          E: 'Etanol',
-          F: 'Flex',
-        }
-        displayFuel =
-          fuelMap[data.fuel_acronym.toUpperCase()] || data.fuel_acronym
       }
 
       const vehicle = await prisma.vehicle.create({
@@ -305,12 +360,12 @@ export async function vehiclesRoutes(app: FastifyInstance) {
           fipe_brand_code: data.fipe_brand_code,
           fipe_model_code: data.fipe_model_code,
           year_id: data.year_id,
-          fuel_acronym: data.fuel_acronym || null,
+          fuel_acronym: finalFuelAcronym || null,
           vehicle_type: data.vehicle_type as VehicleType,
           display_year: displayYear || undefined,
-          display_fuel: displayFuel || undefined,
-          brand_name: data.brand_name || undefined,
-          model_name: data.model_name || undefined,
+          display_fuel: finalDisplayFuel || undefined,
+          brand_name: finalBrandName || undefined,
+          model_name: finalModelName || undefined,
           color: data.color || undefined,
           observations: data.observations || undefined,
           purchase_date: data.purchase_date
@@ -335,8 +390,41 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         },
       })
 
-      // Se for veículo da empresa, automaticamente criar participações para
-      // todos os sócios
+      // Criar cache FIPE automaticamente se conseguimos os dados
+      if (shouldCreateCache && cachedFipeData && finalFuelAcronym) {
+        try {
+          console.log('Criando cache FIPE automaticamente...')
+
+          // Converter preço de "R$ 43.867,00" para número
+          const fipeValue = Number(
+            cachedFipeData.price.replace(/[R$\s.]/g, '').replace(',', '.'),
+          )
+
+          await prisma.fipeCache.create({
+            data: {
+              brand_code: data.fipe_brand_code,
+              model_code: data.fipe_model_code,
+              year_id: data.year_id,
+              fuel_acronym: finalFuelAcronym,
+              vehicle_type: data.vehicle_type as VehicleType,
+              fipe_value: fipeValue,
+              brand_name: cachedFipeData.brand || null,
+              model_name: cachedFipeData.model || null,
+              model_year: cachedFipeData.modelYear || null,
+              fuel_name: cachedFipeData.fuel || null,
+              code_fipe: cachedFipeData.codeFipe || null,
+              reference_month: cachedFipeData.referenceMonth || 'N/A',
+            },
+          })
+
+          console.log(
+            `Cache FIPE criado: R$ ${fipeValue.toLocaleString('pt-BR')}`)
+        } catch (cacheError) {
+          console.warn('Erro ao criar cache FIPE:', cacheError)
+        }
+      }
+
+      // Se for veículo da empresa, criar participações para todos os sócios
       if (data.is_company_vehicle) {
         const partners = await prisma.user.findMany({
           where: {
@@ -362,13 +450,8 @@ export async function vehiclesRoutes(app: FastifyInstance) {
           )
 
           console.log(
-            `Veículo da empresa: criadas ${partners.length} participações ` +
-            `de ${ownershipPercentage.toFixed(2)}% cada`,
-          )
-        } else {
-          console.log(
-            'Nenhum sócio ativo encontrado para criar participações ' +
-            'automáticas',
+          `Veículo da empresa: criadas ${partners.length} participações ` +
+          `de ${ownershipPercentage.toFixed(2)}% cada`,
           )
         }
       }
@@ -376,9 +459,9 @@ export async function vehiclesRoutes(app: FastifyInstance) {
       return res.status(201).send({
         data: vehicle,
         message: data.is_company_vehicle
-          ? 'Veículo da empresa criado com participações automáticas para ' +
-            'todos os sócios'
-          : 'Veículo criado com sucesso',
+          ? 'Veículo da empresa criado com participações automáticas e cache ' +
+            'FIPE'
+          : 'Veículo criado com sucesso e cache FIPE',
       })
     } catch (error) {
       console.error('Erro ao criar veículo:', error)
@@ -399,7 +482,7 @@ export async function vehiclesRoutes(app: FastifyInstance) {
     }
   })
 
-  // PUT /vehicles/:id - Atualizar veículo
+  // PUT /vehicles/:id - Atualizar veículo com cache FIPE automático
   app.put('/vehicles/:id', async (req, res) => {
     await authenticate(req, res)
 
@@ -447,49 +530,119 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         }
       }
 
-      // Preparar dados para atualização
-      let displayYear = data.display_year
-      if (!displayYear && data.year_id) {
-        const yearMatch = data.year_id.match(/^(\d{4})/)
+      // Determinar valores finais (dados fornecidos ou existentes)
+      const finalFipeBrandCode =
+        data.fipe_brand_code ?? existingVehicle.fipe_brand_code
+      const finalFipeModelCode =
+        data.fipe_model_code ?? existingVehicle.fipe_model_code
+      const finalYearId = data.year_id ?? existingVehicle.year_id
+      const finalVehicleType = data.vehicle_type ?? existingVehicle.vehicle_type
+
+      let finalFuelAcronym = data.fuel_acronym !== undefined
+        ? data.fuel_acronym
+        : existingVehicle.fuel_acronym
+      let finalDisplayFuel = data.display_fuel !== undefined
+        ? data.display_fuel
+        : existingVehicle.display_fuel
+      let finalBrandName = data.brand_name !== undefined
+        ? data.brand_name
+        : existingVehicle.brand_name
+      let finalModelName = data.model_name !== undefined
+        ? data.model_name
+        : existingVehicle.model_name
+
+      let shouldCreateCache = false
+      let cachedFipeData: {
+        brand: string;
+        model: string;
+        fuel: string;
+        fuelAcronym: string;
+        price: string;
+        modelYear: number;
+        codeFipe: string;
+        referenceMonth: string;
+      } | null = null
+
+      // Buscar dados FIPE se campos FIPE foram alterados e campos essenciais
+      // estão vazios
+      const fipeFieldsChanged =
+      data.fipe_brand_code || data.fipe_model_code || data.year_id ||
+      data.vehicle_type
+
+      if (fipeFieldsChanged && (!finalFuelAcronym || !finalDisplayFuel ||
+          !finalBrandName || !finalModelName)) {
+        try {
+          console.log('Buscando dados FIPE atualizados...')
+
+          const axios = (await import('../config/axios')).default
+          const { env } = await import('../env')
+
+          const fipeUrl =
+            `${env.API_FIPE_PATH}/${finalVehicleType}/brands/` +
+            `${finalFipeBrandCode}/models/${finalFipeModelCode}/years/` +
+            `${finalYearId}`
+
+          const response = await axios.get(fipeUrl, {
+            params: { reference: env.FIPE_REFERENCE },
+            timeout: 10000,
+          })
+
+          const fipeData = response.data
+
+          // Atualizar campos vazios com dados FIPE
+          if (!finalFuelAcronym) finalFuelAcronym = fipeData.fuelAcronym
+          if (!finalDisplayFuel) finalDisplayFuel = fipeData.fuel
+          if (!finalBrandName) finalBrandName = fipeData.brand
+          if (!finalModelName) finalModelName = fipeData.model
+
+          // Marcar para atualizar cache
+          shouldCreateCache = true
+          cachedFipeData = fipeData
+
+          console.log('Dados FIPE atualizados:', {
+            brand: fipeData.brand,
+            model: fipeData.model,
+            fuel: fipeData.fuel,
+            fuelAcronym: fipeData.fuelAcronym,
+          })
+        } catch (fipeError) {
+          console.warn('Erro ao buscar dados FIPE atualizados:', fipeError)
+
+          // Fallback para fuel_acronym -> display_fuel
+          if (!finalDisplayFuel && finalFuelAcronym) {
+            const fuelMap: Record<string, string> = {
+              G: 'Gasolina', D: 'Diesel', E: 'Etanol', F: 'Flex',
+            }
+            finalDisplayFuel =
+              fuelMap[finalFuelAcronym.toUpperCase()] || finalFuelAcronym
+          }
+        }
+      }
+
+      // Preparar display_year
+      let displayYear = data.display_year ?? existingVehicle.display_year
+      if (!displayYear && finalYearId) {
+        const yearMatch = finalYearId.match(/^(\d{4})/)
         if (yearMatch) {
           displayYear = parseInt(yearMatch[1])
         }
       }
 
-      let displayFuel: string | undefined = data.display_fuel
-      if (!displayFuel && data.fuel_acronym) {
-        const fuelMap: Record<string, string> = {
-          G: 'Gasolina',
-          D: 'Diesel',
-          E: 'Etanol',
-          F: 'Flex',
-        }
-        displayFuel =
-          fuelMap[data.fuel_acronym.toUpperCase()] || data.fuel_acronym
-      }
-
+      // Atualizar o veículo
       const vehicle = await prisma.vehicle.update({
         where: { id },
         data: {
-          license_plate: data.license_plate,
-          renavam: data.renavam,
-          fipe_brand_code: data.fipe_brand_code,
-          fipe_model_code: data.fipe_model_code,
-          year_id: data.year_id,
-          fuel_acronym: data.fuel_acronym !== undefined
-            ? data.fuel_acronym || null
-            : existingVehicle.fuel_acronym,
-          vehicle_type: data.vehicle_type
-            ? data.vehicle_type as VehicleType
-            : existingVehicle.vehicle_type,
-          display_year: displayYear || existingVehicle.display_year,
-          display_fuel: displayFuel || existingVehicle.display_fuel,
-          brand_name: data.brand_name !== undefined
-            ? data.brand_name
-            : existingVehicle.brand_name,
-          model_name: data.model_name !== undefined
-            ? data.model_name
-            : existingVehicle.model_name,
+          license_plate: data.license_plate ?? existingVehicle.license_plate,
+          renavam: data.renavam ?? existingVehicle.renavam,
+          fipe_brand_code: finalFipeBrandCode,
+          fipe_model_code: finalFipeModelCode,
+          year_id: finalYearId,
+          fuel_acronym: finalFuelAcronym,
+          vehicle_type: finalVehicleType as VehicleType,
+          display_year: displayYear,
+          display_fuel: finalDisplayFuel,
+          brand_name: finalBrandName,
+          model_name: finalModelName,
           color: data.color !== undefined
             ? data.color
             : existingVehicle.color,
@@ -524,9 +677,55 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         },
       })
 
+      // Atualizar cache FIPE se conseguimos novos dados
+      if (shouldCreateCache && cachedFipeData && finalFuelAcronym) {
+        try {
+          console.log('Atualizando cache FIPE...')
+
+          // Remover cache antigo se existe
+          await prisma.fipeCache.deleteMany({
+            where: {
+              brand_code: finalFipeBrandCode,
+              model_code: finalFipeModelCode,
+              year_id: finalYearId,
+              vehicle_type: finalVehicleType as VehicleType,
+            },
+          })
+
+          // Criar novo cache
+          const fipeValue = Number(
+            cachedFipeData.price.replace(/[R$\s.]/g, '').replace(',', '.'),
+          )
+
+          await prisma.fipeCache.create({
+            data: {
+              brand_code: finalFipeBrandCode,
+              model_code: finalFipeModelCode,
+              year_id: finalYearId,
+              fuel_acronym: finalFuelAcronym,
+              vehicle_type: finalVehicleType as VehicleType,
+              fipe_value: fipeValue,
+              brand_name: cachedFipeData.brand || null,
+              model_name: cachedFipeData.model || null,
+              model_year: cachedFipeData.modelYear || null,
+              fuel_name: cachedFipeData.fuel || null,
+              code_fipe: cachedFipeData.codeFipe || null,
+              reference_month: cachedFipeData.referenceMonth || 'N/A',
+            },
+          })
+
+          console.log(
+            `Cache FIPE atualizado: R$ ${fipeValue.toLocaleString('pt-BR')}`)
+        } catch (cacheError) {
+          console.warn('Erro ao atualizar cache FIPE:', cacheError)
+        }
+      }
+
       return res.send({
         data: vehicle,
-        message: 'Veículo atualizado com sucesso',
+        message: shouldCreateCache
+          ? 'Veículo atualizado com sucesso e cache FIPE atualizado'
+          : 'Veículo atualizado com sucesso',
       })
     } catch (error) {
       console.error('Erro ao atualizar veículo:', error)

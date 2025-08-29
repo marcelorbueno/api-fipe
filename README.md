@@ -152,7 +152,6 @@ const axiosConfig = {
 
 | Método | Rota | Descrição | Body |
 |--------|------|-----------|------|
-| `POST` | `/auth/register` | Cadastro de usuário | `{ name, email, password, num_cpf, birthday, phone_number, profile }` |
 | `POST` | `/auth/login` | Login do usuário | `{ email, password }` |
 | `POST` | `/auth/refresh` | Renovar token | `{ refreshToken }` |
 | `POST` | `/auth/logout` | Logout do usuário | `{ refreshToken }` |
@@ -160,12 +159,13 @@ const axiosConfig = {
 
 ### 👥 Usuários (`/users`)
 
-| Método | Rota | Descrição | Auth |
-|--------|------|-----------|------|
-| `GET` | `/users` | Listar usuários | Admin |
-| `GET` | `/users/:id` | Buscar usuário | Admin |
-| `PUT` | `/users/:id` | Atualizar usuário | Admin |
-| `DELETE` | `/users/:id` | Desativar usuário | Admin |
+| Método | Rota | Descrição | Body/Auth |
+|--------|------|-----------|-----------|
+| `POST` | `/users` | Cadastrar usuário | `{ name, email, password, num_cpf, birthday, phone_number, profile }` / ✅ |
+| `GET` | `/users` | Listar usuários | 👨‍💼 Admin |
+| `GET` | `/users/:id` | Buscar usuário | 👨‍💼 Admin |
+| `PUT` | `/users/:id` | Atualizar usuário | 👨‍💼 Admin |
+| `DELETE` | `/users/:id` | Desativar usuário | 👨‍💼 Admin |
 
 ### 🚗 Veículos (`/vehicles`)
 
@@ -429,8 +429,9 @@ src/tests/
 ### 1. Registrar Usuário
 
 ```bash
-curl -X POST http://localhost:3001/auth/register \
+curl -X POST http://localhost:3001/users \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer SEU_TOKEN" \
   -d '{
     "name": "João Silva",
     "email": "joao@empresa.com",

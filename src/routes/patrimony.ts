@@ -29,7 +29,7 @@ export async function patrimonyRoutes(app: FastifyInstance) {
         breakdown: {
           total: userPatrimony.total_patrimony,
           personal_vehicles: userPatrimony.personal_vehicles_value,
-          company_participation: userPatrimony.company_vehicles_value,
+          company_participation: userPatrimony.company_participation_value,
         },
       })
     } catch (error) {
@@ -68,7 +68,7 @@ export async function patrimonyRoutes(app: FastifyInstance) {
         total_personal_patrimony: partnersPatrimony.reduce(
           (sum, partner) => sum + partner.personal_vehicles_value, 0),
         total_company_participation: partnersPatrimony.reduce(
-          (sum, partner) => sum + partner.company_vehicles_value, 0),
+          (sum, partner) => sum + partner.company_participation_value, 0),
         average_patrimony: partnersPatrimony.length > 0
           ? partnersPatrimony.reduce(
             (sum, partner) => sum + partner.total_patrimony, 0) /
@@ -188,8 +188,6 @@ export async function patrimonyRoutes(app: FastifyInstance) {
           company_vs_personal: {
             company_patrimony: report.summary.company_patrimony,
             partners_personal: report.summary.partners_personal_patrimony,
-            partners_company_participation:
-              report.summary.partners_company_participation,
             investors_patrimony: report.summary.investors_patrimony,
           },
           totals: {

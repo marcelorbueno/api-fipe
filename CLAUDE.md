@@ -44,7 +44,8 @@ Este arquivo fornece orientações ao Claude Code (claude.ai/code) ao trabalhar 
 
 #### Camada de Serviços
 - **PatrimonyService** (`src/services/patrimony-service.ts`): Lógica de negócio principal para cálculo de patrimônio de usuários e empresa baseado em valores de veículos
-- **VehicleEnrichmentService** (`src/services/vehicle-enrichment-service.ts`): Enriquece dados de veículos com informações FIPE
+- **VehicleService** (`src/services/vehicle-service.ts`): Lógica de negócio para operações com veículos, incluindo validação e enriquecimento de dados
+- **FipeCacheService** (`src/services/fipe-cache-service.ts`): Gerenciamento de cache inteligente para valores FIPE com fallbacks
 - **FipeAPI** (`src/lib/fipe-api.ts`): Integração com API brasileira de precificação de veículos
 
 #### Estrutura das Rotas da API

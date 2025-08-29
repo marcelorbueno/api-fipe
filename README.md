@@ -242,7 +242,8 @@ const axiosConfig = {
 
 ### 💾 Sistema de Cache FIPE
 
-#### Comportamento do Cache
+#### Serviços de Cache Inteligente
+- **FipeCacheService** - Gerenciamento centralizado do cache FIPE
 - **Cache automático** criado durante criação/atualização de veículos
 - **Fallback inteligente** para últimos valores conhecidos quando API falha
 - **Rate limiting** com delay de 1,5s entre requisições
@@ -251,6 +252,7 @@ const axiosConfig = {
 #### 🌐 Tratamento de Conectividade
 - Em ambientes corporativos com proxy, pode haver instabilidade da API FIPE
 - Sistema mantém último valor conhecido automaticamente
+- **Normalização automática** do fuel_acronym (padrão: "G" para Gasolina)
 - Logs detalhados para debugging de problemas de conectividade
 - Valores FIPE são cacheados por combinação: `brand_code + model_code + year_id + fuel_acronym + vehicle_type`
 
@@ -598,10 +600,14 @@ FIPE_REFERENCE=324
 
 ### Padrões de Código
 
-- **TypeScript** obrigatório
+- **TypeScript** obrigatório com tipagem rigorosa
 - **ESLint** com configuração rigorosa
 - **Prisma** para todas as operações de banco
 - **Zod** para validação de schemas
+- **Tratamento centralizado de erros** com classes personalizadas
+- **Separação clara** entre rotas, serviços e utilitários
+- **Cache inteligente** com fallbacks para robustez
+- **Constantes centralizadas** para regras de negócio
 
 ### Fluxo de Contribuição
 

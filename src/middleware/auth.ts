@@ -1,6 +1,7 @@
 import { env } from '@/env'
 import { FastifyRequest, FastifyReply } from 'fastify'
 import jwt from 'jsonwebtoken'
+import { TokenBlacklistService } from '../services/token-blacklist-service'
 
 interface JWTPayload {
   sub: string,
@@ -26,6 +27,15 @@ export async function authenticate(
     if (!token) {
       return reply.status(401).send({
         error: 'Token de acesso inválido',
+      })
+    }
+
+    // Verificar se o token está na blacklist
+    const isBlacklisted = await TokenBlacklistService.isTokenBlacklisted(token)
+
+    if (isBlacklisted) {
+      return reply.status(401).send({
+        error: 'Token de acesso revogado',
       })
     }
 

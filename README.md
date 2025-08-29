@@ -150,12 +150,14 @@ const axiosConfig = {
 
 ### 🔐 Autenticação (`/auth`)
 
-| Método | Rota | Descrição | Body |
-|--------|------|-----------|------|
+| Método | Rota | Descrição | Body/Auth |
+|--------|------|-----------|-----------|
 | `POST` | `/auth/login` | Login do usuário | `{ email, password }` |
 | `POST` | `/auth/refresh` | Renovar token | `{ refreshToken }` |
-| `POST` | `/auth/logout` | Logout do usuário | `{ refreshToken }` |
-| `GET` | `/auth/me` | Dados do usuário logado | - |
+| `POST` | `/auth/logout` | **Logout imediato** com blacklist | `{ refreshToken }` + Bearer Token |
+| `GET` | `/auth/me` | Dados do usuário logado | ✅ |
+| `GET` | `/auth/blacklist/stats` | Estatísticas da blacklist | 👨‍💼 Admin |
+| `POST` | `/auth/blacklist/cleanup` | Limpeza de tokens expirados | 👨‍💼 Admin |
 
 ### 👥 Usuários (`/users`)
 
@@ -240,6 +242,20 @@ const axiosConfig = {
 - Valor individual = `valor_total_empresa / número_sócios_ativos`
 - **Recálculo automático** quando novos sócios são adicionados
 
+### 🚫 Sistema de Blacklist JWT
+
+#### Logout Imediato e Seguro
+- **Blacklist de tokens** para logout efetivo imediato
+- Tokens são **revogados instantaneamente** no logout
+- **Limpeza automática** de tokens expirados
+- Proteção contra uso de tokens após logout
+
+#### 🛡️ Segurança Aprimorada
+- **Verificação dupla**: expiração natural + blacklist
+- **Monitoramento** de tokens revogados via admin
+- **Performance otimizada** com índices no PostgreSQL
+- **Tolerante a falhas** - funciona mesmo se blacklist não existir
+
 ### 💾 Sistema de Cache FIPE
 
 #### Serviços de Cache Inteligente
@@ -322,6 +338,14 @@ refresh_tokens (
   token: VARCHAR UNIQUE,
   user_id: UUID REFERENCES users(id),
   expires_at: TIMESTAMP
+)
+
+-- Blacklist de tokens de acesso (logout imediato)
+token_blacklist (
+  id: UUID PRIMARY KEY,
+  token: TEXT UNIQUE,
+  expires_at: TIMESTAMP,
+  created_at: TIMESTAMP DEFAULT now()
 )
 ```
 

@@ -1,8 +1,10 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
 import bcrypt from 'bcryptjs'
+import jwt from 'jsonwebtoken'
 import { randomUUID } from 'crypto'
 import { prisma } from '../lib/prisma'
+import { TokenBlacklistService } from '../services/token-blacklist-service'
 
 // Interface local que sobrescreve a tipagem padrão
 interface AuthenticatedRequest extends FastifyRequest {
@@ -11,6 +13,15 @@ interface AuthenticatedRequest extends FastifyRequest {
     profile?: 'ADMINISTRATOR' | 'PARTNER' | 'INVESTOR'
     sub?: string
   }
+}
+
+// Interface para JWT decodificado
+interface DecodedJWT {
+  sub?: string
+  email?: string
+  profile?: 'ADMINISTRATOR' | 'PARTNER' | 'INVESTOR'
+  exp?: number
+  iat?: number
 }
 
 // Schemas de validação
@@ -162,10 +173,38 @@ export async function authRoutes(app: FastifyInstance) {
     try {
       const { refreshToken } = refreshSchema.parse(req.body)
 
+      // Extrair access token do header
+      const authHeader = req.headers.authorization
+      const accessToken = authHeader?.replace('Bearer ', '')
+
       // Remover refresh token
       await prisma.refreshToken.delete({
         where: { token: refreshToken },
       })
+
+      // Adicionar access token à blacklist se fornecido
+      if (accessToken) {
+        try {
+          // Decodificar token para obter expiração
+          const decoded = jwt.decode(accessToken) as DecodedJWT
+          const expiresAt = decoded?.exp
+            ? new Date(decoded.exp * 1000)
+            : new Date(Date.now() + 24 * 60 * 60 * 1000) // Default: 24h
+
+          const success = await TokenBlacklistService.addTokenToBlacklist(
+            accessToken,
+            expiresAt,
+          )
+
+          if (success) {
+            console.log(
+              '✅ Token adicionado à blacklist - logout efetivo imediato',
+            )
+          }
+        } catch (tokenError) {
+          console.warn('Erro ao adicionar token à blacklist:', tokenError)
+        }
+      }
 
       return res.send({ message: 'Logout realizado com sucesso' })
     } catch (error) {
@@ -207,5 +246,63 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     return reply.send({ user: userData })
+  })
+
+  // GET /auth/blacklist/stats - Estatísticas da blacklist (Admin only)
+  app.get('/auth/blacklist/stats', {
+    preHandler: [app.authenticate],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const authRequest = request as AuthenticatedRequest
+
+    // Apenas administradores podem ver estatísticas
+    if (authRequest.user?.profile !== 'ADMINISTRATOR') {
+      return reply.status(403).send({
+        error: 'Acesso negado - apenas administradores',
+      })
+    }
+
+    try {
+      const stats = await TokenBlacklistService.getBlacklistStats()
+      return reply.send({
+        blacklist: stats,
+        message: 'Estatísticas da blacklist de tokens',
+      })
+    } catch (error) {
+      return reply.status(500).send({
+        error: 'Erro ao obter estatísticas da blacklist',
+        details: error instanceof Error
+          ? error.message
+          : 'Erro desconhecido',
+      })
+    }
+  })
+
+  // POST /auth/blacklist/cleanup - Limpeza manual da blacklist (Admin only)
+  app.post('/auth/blacklist/cleanup', {
+    preHandler: [app.authenticate],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const authRequest = request as AuthenticatedRequest
+
+    // Apenas administradores podem fazer limpeza
+    if (authRequest.user?.profile !== 'ADMINISTRATOR') {
+      return reply.status(403).send({
+        error: 'Acesso negado - apenas administradores',
+      })
+    }
+
+    try {
+      const result = await TokenBlacklistService.cleanupExpiredTokens()
+      return reply.send({
+        cleanup: result,
+        message: `Limpeza concluída: ${result.deleted} tokens removidos`,
+      })
+    } catch (error) {
+      return reply.status(500).send({
+        error: 'Erro na limpeza da blacklist',
+        details: error instanceof Error
+          ? error.message
+          : 'Erro desconhecido',
+      })
+    }
   })
 }

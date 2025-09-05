@@ -1135,6 +1135,22 @@ async function main() {
       },
     }),
 
+    prisma.vehicle.create({
+      data: {
+        license_plate: 'SRD6I99',
+        renavam: '01387222462',
+        fipe_brand_code: 80,
+        fipe_model_code: 7525,
+        year_id: '2024-1',
+        vehicle_type: VehicleType.motorcycles,
+        color: 'Vermelha',
+        is_company_vehicle: false,
+        observations: null,
+        purchase_date: null,
+        purchase_value: null,
+      },
+    }),
+
     // Veículos da investidora Andrea
     prisma.vehicle.create({
       data: {

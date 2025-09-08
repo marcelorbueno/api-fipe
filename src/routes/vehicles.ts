@@ -2,6 +2,8 @@ import { FastifyInstance } from 'fastify'
 import { PrismaClient, VehicleType } from '@prisma/client'
 import { z } from 'zod'
 import { authenticate } from '../middleware/auth'
+import axios from '../config/axios'
+import { env } from '../env'
 
 const prisma = new PrismaClient()
 
@@ -297,9 +299,6 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         try {
           console.log('Buscando dados FIPE automaticamente...')
 
-          const axios = (await import('../config/axios')).default
-          const { env } = await import('../env')
-
           const vehicleType = data.vehicle_type
           const fipeUrl =
             `${env.API_FIPE_PATH}/${vehicleType}/brands/` +
@@ -573,9 +572,6 @@ export async function vehiclesRoutes(app: FastifyInstance) {
           !finalBrandName || !finalModelName)) {
         try {
           console.log('Buscando dados FIPE atualizados...')
-
-          const axios = (await import('../config/axios')).default
-          const { env } = await import('../env')
 
           const fipeUrl =
             `${env.API_FIPE_PATH}/${finalVehicleType}/brands/` +

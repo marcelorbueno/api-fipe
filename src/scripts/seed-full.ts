@@ -366,7 +366,7 @@ async function main() {
     prisma.vehicle.create({
       data: {
         license_plate: 'RUL1G03',
-        renavam: '01274713371',
+        renavam: '01301705150',
         fipe_brand_code: 48,
         fipe_model_code: 9064,
         year_id: '2023-5',
@@ -1193,7 +1193,7 @@ async function main() {
   const ownerships = []
 
   // Veículos da empresa (25% para cada sócio)
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < 22; i++) {
     for (const partner of partners) {
       const ownership = await prisma.vehicleOwnership.create({
         data: {
@@ -1206,78 +1206,69 @@ async function main() {
     }
   }
 
-  // V3: 100% João
-  ownerships.push(await prisma.vehicleOwnership.create({
-    data: {
-      vehicle_id: vehicles[2].id,
-      user_id: partners[0].id, // João
-      ownership_percentage: 100.00,
-    },
-  }))
+  // Veículos compartilhados Rafael + Fábio + Marcelo
+  for (let i = 22; i < 32; i++) {
+    for (let j = 1; j < 4; j++) {
+      const ownership = await prisma.vehicleOwnership.create({
+        data: {
+          vehicle_id: vehicles[i].id,
+          user_id: partners[j].id,
+          ownership_percentage: 33.33,
+        },
+      })
+      ownerships.push(ownership)
+    }
+  }
 
-  // V4: 50% João + 50% Maria
+  // Veículos compartilhados Fábio + Marcos
   ownerships.push(await prisma.vehicleOwnership.create({
     data: {
-      vehicle_id: vehicles[3].id,
-      user_id: partners[0].id, // João
+      vehicle_id: vehicles[32].id,
+      user_id: partners[0].id, // Marcos
       ownership_percentage: 50.00,
     },
   }))
+
   ownerships.push(await prisma.vehicleOwnership.create({
     data: {
-      vehicle_id: vehicles[3].id,
-      user_id: partners[1].id, // Maria
+      vehicle_id: vehicles[32].id,
+      user_id: partners[3].id, // Fábio
       ownership_percentage: 50.00,
     },
   }))
 
-  // V5: 33.33% João + 33.33% Maria + 33.34% Carlos
+  // Veículo individual de Fábio
   ownerships.push(await prisma.vehicleOwnership.create({
     data: {
-      vehicle_id: vehicles[4].id,
-      user_id: partners[0].id, // João
-      ownership_percentage: 33.33,
-    },
-  }))
-  ownerships.push(await prisma.vehicleOwnership.create({
-    data: {
-      vehicle_id: vehicles[4].id,
-      user_id: partners[1].id, // Maria
-      ownership_percentage: 33.33,
-    },
-  }))
-  ownerships.push(await prisma.vehicleOwnership.create({
-    data: {
-      vehicle_id: vehicles[4].id,
-      user_id: partners[2].id, // Carlos
-      ownership_percentage: 33.34,
-    },
-  }))
-
-  // V6 e V7: 100% Roberto (investidor)
-  ownerships.push(await prisma.vehicleOwnership.create({
-    data: {
-      vehicle_id: vehicles[5].id,
-      user_id: investors[0].id, // Roberto
-      ownership_percentage: 100.00,
-    },
-  }))
-  ownerships.push(await prisma.vehicleOwnership.create({
-    data: {
-      vehicle_id: vehicles[6].id,
-      user_id: investors[0].id, // Roberto
+      vehicle_id: vehicles[33].id,
+      user_id: partners[3].id, // Fábio
       ownership_percentage: 100.00,
     },
   }))
 
-  // V8: 100% Patricia (investidora)
-  ownerships.push(await prisma.vehicleOwnership.create({
-    data: {
-      vehicle_id: vehicles[7].id,
-      user_id: investors[1].id, // Patricia
-      ownership_percentage: 100.00,
-    },
-  }))
+  // Veículos do investidor Igor
+  for (let i = 34; i < 63; i++) {
+    const ownership = await prisma.vehicleOwnership.create({
+      data: {
+        vehicle_id: vehicles[i].id,
+        user_id: investors[0].id,
+        ownership_percentage: 100.00,
+      },
+    })
+    ownerships.push(ownership)
+  }
+
+  // Veículos do investidora Andrea
+  for (let i = 63; i < 65; i++) {
+    const ownership = await prisma.vehicleOwnership.create({
+      data: {
+        vehicle_id: vehicles[i].id,
+        user_id: investors[1].id,
+        ownership_percentage: 100.00,
+      },
+    })
+    ownerships.push(ownership)
+  }
 
   console.log(`✅ ${ownerships.length} participações criadas`)
 

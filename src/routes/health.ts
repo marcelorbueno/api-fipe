@@ -1,12 +1,11 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
-import axios from 'axios'
+import { FastifyInstance, FastifyReply } from 'fastify'
+import axios from '../config/axios'
+import { env } from '../env'
 
 export async function healthRoutes(app: FastifyInstance) {
   // 🔍 Health Check - Teste de conexão
-  app.get('/health', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.get('/health', async (_, reply: FastifyReply) => {
     try {
-      const { env } = await import('../env')
-
       // Dados básicos (sempre disponíveis)
       const healthData = {
         status: 'OK',

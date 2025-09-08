@@ -1,5 +1,5 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
-import { AxiosError } from 'axios' // ✅ IMPORTAR AxiosError
+import { AxiosError } from 'axios'
 import axios from '../config/axios'
 import { env } from '../env'
 

@@ -99,7 +99,30 @@ async function createFipeCache(
   if (!fipeData.fipe_value) return
 
   try {
-    await prisma.fipeCache.create({
+    // Verificar se já existe cache para essa combinação
+    const existingCache = await prisma.fipeCache.findFirst({
+      where: {
+        brand_code: vehicleData.fipe_brand_code,
+        model_code: vehicleData.fipe_model_code,
+        year_id: vehicleData.year_id,
+        fuel_acronym: fipeData.fuel_acronym || null,
+        vehicle_type: vehicleData.vehicle_type,
+      },
+    })
+
+    if (existingCache) {
+      console.log(
+        '💾 Cache FIPE já existe: R$ ' +
+          `${Number(existingCache.fipe_value).toLocaleString('pt-BR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })} (reutilizando)`,
+      )
+      return existingCache
+    }
+
+    // Criar novo cache se não existir
+    const newCache = await prisma.fipeCache.create({
       data: {
         brand_code: vehicleData.fipe_brand_code,
         model_code: vehicleData.fipe_model_code,
@@ -116,8 +139,12 @@ async function createFipeCache(
       },
     })
     console.log(
-      `💾 Cache FIPE criado: R$ ${fipeData.fipe_value?.toLocaleString('pt-BR')}`,
+      `💾 Cache FIPE criado: R$ ${fipeData.fipe_value?.toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`,
     )
+    return newCache
   } catch (error) {
     console.warn('⚠️ Erro ao criar cache FIPE:', error)
   }
@@ -521,9 +548,6 @@ async function main() {
       purchase_date: null,
       purchase_value: 16090.00,
     },
-
-    // Veículos compartilhados Rafael + Fábio + Marcelo (10 veículos - índices
-    // 22-31)
     {
       license_plate: 'RFI0H00',
       renavam: '01234800028',
@@ -653,8 +677,6 @@ async function main() {
       purchase_date: null,
       purchase_value: 15700.00,
     },
-
-    // Veículo compartilhado Fábio + Marcos (1 veículo - índice 32)
     {
       license_plate: 'FWD4I31',
       renavam: '01268231417',
@@ -668,8 +690,6 @@ async function main() {
       purchase_date: null,
       purchase_value: null,
     },
-
-    // Veículo individual de Fábio (1 veículo - índice 33)
     {
       license_plate: 'FQU7A83',
       renavam: '01268231069',
@@ -683,8 +703,6 @@ async function main() {
       purchase_date: new Date('2025-07-15'),
       purchase_value: 59730.00,
     },
-
-    // Veículos do investidor Igor (29 veículos - índices 34-62)
     {
       license_plate: 'QNN4D26',
       renavam: '01137672266',
@@ -1062,8 +1080,6 @@ async function main() {
       purchase_date: null,
       purchase_value: null,
     },
-
-    // Veículos da investidora Andrea (2 veículos - índices 63-64)
     {
       license_plate: 'LMR9D82',
       renavam: '01178643791',
@@ -1252,8 +1268,8 @@ async function main() {
 
     // Delay para não sobrecarregar a API FIPE
     if (i < vehicleBaseData.length - 1) {
-      console.log('⏳ Aguardando 2 segundos...')
-      await delay(2000)
+      console.log('⏳ Aguardando 0,2 segundos...')
+      await delay(200)
     }
   }
 

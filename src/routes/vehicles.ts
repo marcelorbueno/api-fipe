@@ -394,30 +394,50 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         try {
           console.log('Criando cache FIPE automaticamente...')
 
-          // Converter preço de "R$ 43.867,00" para número
-          const fipeValue = Number(
-            cachedFipeData.price.replace(/[R$\s.]/g, '').replace(',', '.'),
-          )
-
-          await prisma.fipeCache.create({
-            data: {
-              brand_code: data.fipe_brand_code,
-              model_code: data.fipe_model_code,
-              year_id: data.year_id,
-              fuel_acronym: finalFuelAcronym,
-              vehicle_type: data.vehicle_type as VehicleType,
-              fipe_value: fipeValue,
-              brand_name: cachedFipeData.brand || null,
-              model_name: cachedFipeData.model || null,
-              model_year: cachedFipeData.modelYear || null,
-              fuel_name: cachedFipeData.fuel || null,
-              code_fipe: cachedFipeData.codeFipe || null,
-              reference_month: cachedFipeData.referenceMonth || 'N/A',
+          // Verificar se já existe cache para esta combinação
+          const existingCache = await prisma.fipeCache.findUnique({
+            where: {
+              brand_code_model_code_year_id_fuel_acronym_vehicle_type: {
+                brand_code: data.fipe_brand_code,
+                model_code: data.fipe_model_code,
+                year_id: data.year_id,
+                fuel_acronym: finalFuelAcronym,
+                vehicle_type: data.vehicle_type as VehicleType,
+              },
             },
           })
 
-          console.log(
-            `Cache FIPE criado: R$ ${fipeValue.toLocaleString('pt-BR')}`)
+          if (existingCache) {
+            const formattedValue = Number(existingCache.fipe_value)
+              .toLocaleString('pt-BR')
+            console.log(`Cache FIPE já existe: R$ ${formattedValue}`)
+          } else {
+            // Converter preço de "R$ 43.867,00" para número
+            const fipeValue = Number(
+              cachedFipeData.price.replace(/[R$\s.]/g, '').replace(',', '.'),
+            )
+
+            await prisma.fipeCache.create({
+              data: {
+                brand_code: data.fipe_brand_code,
+                model_code: data.fipe_model_code,
+                year_id: data.year_id,
+                fuel_acronym: finalFuelAcronym,
+                vehicle_type: data.vehicle_type as VehicleType,
+                fipe_value: fipeValue,
+                brand_name: cachedFipeData.brand || null,
+                model_name: cachedFipeData.model || null,
+                model_year: cachedFipeData.modelYear || null,
+                fuel_name: cachedFipeData.fuel || null,
+                code_fipe: cachedFipeData.codeFipe || null,
+                reference_month: cachedFipeData.referenceMonth || 'N/A',
+              },
+            })
+
+            console.log(
+              `Cache FIPE criado: R$ ${fipeValue.toLocaleString('pt-BR')}`,
+            )
+          }
         } catch (cacheError) {
           console.warn('Erro ao criar cache FIPE:', cacheError)
         }

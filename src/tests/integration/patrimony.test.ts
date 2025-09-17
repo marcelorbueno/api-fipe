@@ -266,7 +266,7 @@ describe('Patrimony Service & Routes', () => {
 
       await expect(
         patrimonyService.calculateUserPatrimony(nonExistentId),
-      ).rejects.toThrow('User not found')
+      ).rejects.toThrow('Usuário não encontrado')
     })
   })
 
@@ -489,7 +489,7 @@ describe('Patrimony Service & Routes', () => {
         expect(body).toHaveProperty('message')
       })
 
-    test('GET /patrimony/stats should return patrimony statistics or skip',
+    test('GET /patrimony/company should return company patrimony or skip',
       async () => {
         if (authTokens.accessToken === 'mock-token') {
           console.log('Pulando teste de rota HTTP - auth tokens indisponíveis')
@@ -498,7 +498,7 @@ describe('Patrimony Service & Routes', () => {
 
         const response = await server.inject({
           method: 'GET',
-          url: '/patrimony/stats',
+          url: '/patrimony/company',
           headers: AuthHelper.getAuthHeaders(authTokens.accessToken),
         })
 

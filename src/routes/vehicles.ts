@@ -207,7 +207,7 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         pagination: {
           page,
           limit,
-          totalCount,
+          total: totalCount,
           totalPages,
           hasNextPage,
           hasPreviousPage,
@@ -254,6 +254,20 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         fuel_acronym: data.fuel_acronym,
         is_company_vehicle: data.is_company_vehicle,
       })
+
+      // Validar códigos FIPE básicos (evitar códigos claramente inválidos)
+      if (data.fipe_brand_code > 9999 || data.fipe_model_code > 9999) {
+        return res.status(400).send({
+          error: 'Códigos FIPE inválidos (devem ser menores que 10000)',
+        })
+      }
+
+      // Validar formato do year_id
+      if (!data.year_id.match(/^\d{4}-\d+$/)) {
+        return res.status(400).send({
+          error: 'Formato de year_id inválido. Use o formato YYYY-N (ex: 2017-5)',
+        })
+      }
 
       // Verificar se placa já existe
       const existingVehicle = await prisma.vehicle.findUnique({
@@ -877,8 +891,8 @@ export async function vehiclesRoutes(app: FastifyInstance) {
     }
   })
 
-  // POST /vehicles/:id/ownership - Adicionar proprietário ao veículo
-  app.post('/vehicles/:id/ownership', async (req, res) => {
+  // POST /vehicles/:id/owners - Adicionar proprietário ao veículo
+  app.post('/vehicles/:id/owners', async (req, res) => {
     await authenticate(req, res)
 
     try {
@@ -968,7 +982,10 @@ export async function vehiclesRoutes(app: FastifyInstance) {
       )
 
       return res.status(201).send({
-        data: ownership,
+        data: {
+          ...ownership,
+          ownership_percentage: Number(ownership.ownership_percentage),
+        },
         message:
           `Participação de ${ownershipData.ownershipPercentage}% adicionada ` +
           `para ${user.name}`,
@@ -992,8 +1009,8 @@ export async function vehiclesRoutes(app: FastifyInstance) {
     }
   })
 
-  // PUT /vehicles/:id/ownership/:userId - Alterar participação do veículo
-  app.put('/vehicles/:id/ownership/:userId', async (req, res) => {
+  // PUT /vehicles/:id/owners/:userId - Alterar participação do veículo
+  app.put('/vehicles/:id/owners/:userId', async (req, res) => {
     await authenticate(req, res)
 
     try {
@@ -1080,7 +1097,10 @@ export async function vehiclesRoutes(app: FastifyInstance) {
       )
 
       return res.send({
-        data: updatedOwnership,
+        data: {
+          ...updatedOwnership,
+          ownership_percentage: Number(updatedOwnership.ownership_percentage),
+        },
         message:
           `Participação atualizada para ${ownershipData.ownershipPercentage}%`,
       })
@@ -1103,8 +1123,8 @@ export async function vehiclesRoutes(app: FastifyInstance) {
     }
   })
 
-  // DELETE /vehicles/:id/ownership/:userId - Remover proprietário do veículo
-  app.delete('/vehicles/:id/ownership/:userId', async (req, res) => {
+  // DELETE /vehicles/:id/owners/:userId - Remover proprietário do veículo
+  app.delete('/vehicles/:id/owners/:userId', async (req, res) => {
     await authenticate(req, res)
 
     try {
@@ -1168,6 +1188,88 @@ export async function vehiclesRoutes(app: FastifyInstance) {
 
       return res.status(500).send({
         error: 'Erro ao remover participação',
+        details: error instanceof Error
+          ? error.message
+          : 'Erro desconhecido',
+      })
+    }
+  })
+
+  // GET /vehicles/stats - Obter estatísticas dos veículos
+  app.get('/vehicles/stats', async (req, res) => {
+    await authenticate(req, res)
+
+    try {
+      console.log('Calculando estatísticas de veículos')
+
+      // Obter estatísticas básicas
+      const [
+        totalVehicles,
+        companyVehicles,
+        personalVehicles,
+        vehiclesByType,
+        ownershipStats,
+      ] = await Promise.all([
+        // Total de veículos
+        prisma.vehicle.count(),
+
+        // Veículos da empresa
+        prisma.vehicle.count({
+          where: { is_company_vehicle: true },
+        }),
+
+        // Veículos pessoais
+        prisma.vehicle.count({
+          where: { is_company_vehicle: false },
+        }),
+
+        // Veículos por tipo
+        prisma.vehicle.groupBy({
+          by: ['vehicle_type'],
+          _count: {
+            vehicle_type: true,
+          },
+        }),
+
+        // Estatísticas de propriedade
+        prisma.vehicleOwnership.aggregate({
+          _avg: {
+            ownership_percentage: true,
+          },
+          _count: {
+            ownership_percentage: true,
+          },
+        }),
+      ])
+
+      // Formatar dados de veículos por tipo
+      const vehicleTypeStats = vehiclesByType.reduce((acc, item) => {
+        acc[item.vehicle_type] = item._count.vehicle_type
+        return acc
+      }, {} as Record<string, number>)
+
+      const stats = {
+        total_vehicles: totalVehicles,
+        company_vehicles: companyVehicles,
+        personal_vehicles: personalVehicles,
+        vehicles_by_type: vehicleTypeStats,
+        ownership_stats: {
+          total_ownerships: ownershipStats._count.ownership_percentage || 0,
+          average_ownership_percentage: Math.round((ownershipStats._avg.ownership_percentage || 0) * 100) / 100,
+        },
+      }
+
+      console.log('Estatísticas de veículos calculadas:', stats)
+
+      return res.send({
+        data: stats,
+        message: 'Estatísticas de veículos calculadas com sucesso',
+      })
+    } catch (error) {
+      console.error('Erro ao calcular estatísticas de veículos:', error)
+
+      return res.status(500).send({
+        error: 'Erro ao calcular estatísticas de veículos',
         details: error instanceof Error
           ? error.message
           : 'Erro desconhecido',

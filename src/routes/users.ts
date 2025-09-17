@@ -668,4 +668,69 @@ export async function usersRoutes(app: FastifyInstance) {
       })
     }
   })
+
+  // GET /users/stats - Obter estatísticas dos usuários
+  app.get('/users/stats', async (req, res) => {
+    await authenticate(req, res)
+
+    try {
+      console.log('Calculando estatísticas de usuários')
+
+      // Obter estatísticas básicas
+      const [
+        totalUsers,
+        activeUsers,
+        usersByProfile,
+      ] = await Promise.all([
+        // Total de usuários
+        prisma.user.count(),
+
+        // Usuários ativos
+        prisma.user.count({
+          where: { is_active: true },
+        }),
+
+        // Usuários por perfil
+        prisma.user.groupBy({
+          by: ['profile'],
+          _count: {
+            profile: true,
+          },
+        }),
+      ])
+
+      // Calcular média de veículos por usuário
+      const vehicleOwnershipCount = await prisma.vehicleOwnership.count()
+      const averageVehiclesPerUser = totalUsers > 0 ? vehicleOwnershipCount / totalUsers : 0
+
+      // Formatar dados de usuários por perfil
+      const profileStats = usersByProfile.reduce((acc, item) => {
+        acc[item.profile] = item._count.profile
+        return acc
+      }, {} as Record<string, number>)
+
+      const stats = {
+        total_users: totalUsers,
+        active_users: activeUsers,
+        users_by_profile: profileStats,
+        average_vehicles_per_user: Math.round(averageVehiclesPerUser * 100) / 100,
+      }
+
+      console.log('Estatísticas calculadas:', stats)
+
+      return res.send({
+        data: stats,
+        message: 'Estatísticas de usuários calculadas com sucesso',
+      })
+    } catch (error) {
+      console.error('Erro ao calcular estatísticas de usuários:', error)
+
+      return res.status(500).send({
+        error: 'Erro ao calcular estatísticas de usuários',
+        details: error instanceof Error
+          ? error.message
+          : 'Erro desconhecido',
+      })
+    }
+  })
 }

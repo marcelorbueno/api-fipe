@@ -291,6 +291,44 @@ export async function createTestVehicle(
   return AuthHelper.createTestVehicle(server, accessToken, options)
 }
 
+// Função helper para criar cache FIPE de teste (evita duplicatas)
+export async function createTestFipeCache(data: {
+  brand_code: number
+  model_code: number
+  year_id: string
+  fuel_acronym: string | null
+  vehicle_type: VehicleType
+  fipe_value: number
+}) {
+  // Verificar se já existe
+  const existing = await prisma.fipeCache.findFirst({
+    where: {
+      brand_code: data.brand_code,
+      model_code: data.model_code,
+      year_id: data.year_id,
+      fuel_acronym: data.fuel_acronym,
+      vehicle_type: data.vehicle_type,
+    },
+  })
+
+  if (existing) {
+    return existing
+  }
+
+  // Criar novo se não existe
+  return await prisma.fipeCache.create({
+    data: {
+      ...data,
+      brand_name: 'Test Brand',
+      model_name: 'Test Model',
+      model_year: 2020,
+      fuel_name: 'Gasolina',
+      code_fipe: 'TEST001-1',
+      reference_month: 'setembro/2025',
+    },
+  })
+}
+
 // Função helper para limpar dados de teste
 export async function cleanupTestData() {
   try {
@@ -300,6 +338,7 @@ export async function cleanupTestData() {
     await prisma.vehicle.deleteMany()
     await prisma.user.deleteMany()
     await prisma.fipeCache.deleteMany()
+    await prisma.tokenBlacklist.deleteMany()
 
     console.log('✅ Dados de teste limpos com sucesso')
   } catch (error) {

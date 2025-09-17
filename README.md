@@ -21,6 +21,7 @@ O API FIPE é um sistema completo de gestão patrimonial focado em veículos, de
 - 📊 Relatórios de patrimônio individual e empresarial
 - 📄 Cache inteligente para reduzir chamadas à API FIPE
 - 📈 Percentuais de propriedade personalizáveis por veículo
+- 📚 Documentação interativa com Swagger UI e Scalar
 
 ## 🛠️ Stack Tecnológico
 
@@ -29,6 +30,7 @@ O API FIPE é um sistema completo de gestão patrimonial focado em veículos, de
 - **TypeScript** - Tipagem estática
 - **Fastify** - Framework web de alta performance
 - **Prisma** - ORM moderno para TypeScript
+- **Swagger/OpenAPI 3.0** - Documentação de API padronizada
 
 ### Banco de Dados
 - **PostgreSQL** - Banco de dados relacional
@@ -38,6 +40,11 @@ O API FIPE é um sistema completo de gestão patrimonial focado em veículos, de
 - **API FIPE** - Preços atualizados de veículos
 - **JWT** - Autenticação e autorização
 - **Zod** - Validação de schemas
+
+### Documentação
+- **Swagger/OpenAPI 3.0** - Especificação padrão da API
+- **Swagger UI** - Interface interativa de documentação
+- **Scalar API Reference** - Documentação moderna e elegante
 
 ### Testes e Qualidade
 - **Jest** - Framework de testes
@@ -145,6 +152,53 @@ const axiosConfig = {
   } : undefined
 }
 ```
+
+## 📚 Documentação da API
+
+### 🌟 Documentação Interativa
+
+A API oferece documentação profissional e moderna através de duas interfaces:
+
+#### 📖 **Swagger UI** - Interface Clássica
+- **URL**: `http://localhost:3001/docs/`
+- Interface tradicional e amplamente conhecida
+- Permite testar endpoints diretamente
+- Exportação da especificação OpenAPI
+
+#### ✨ **Scalar API Reference** - Interface Moderna
+- **URL**: `http://localhost:3001/reference/`
+- Design moderno e elegante
+- Navegação intuitiva por categorias
+- Tema purple com layout responsivo
+
+#### 🔧 **OpenAPI JSON**
+- **URL**: `http://localhost:3001/docs/json`
+- Especificação completa em formato JSON
+- Compatível com ferramentas de geração de código
+- Padrão OpenAPI 3.0
+
+### 🚀 Como Acessar
+
+**Desenvolvimento Local:**
+```bash
+npm run dev
+# Acesse: http://localhost:3002/docs/ ou http://localhost:3002/reference/
+```
+
+**Via Docker:**
+```bash
+docker-compose up -d
+# Acesse: http://localhost:3001/docs/ ou http://localhost:3001/reference/
+```
+
+### 📋 Recursos da Documentação
+
+- ✅ **Autenticação JWT integrada** - Teste com seus tokens
+- ✅ **Exemplos de requisições** - Payloads prontos para usar
+- ✅ **Códigos de resposta** - Todos os cenários documentados
+- ✅ **Schemas validados** - Estruturas de dados detalhadas
+- ✅ **Categorização por módulos** - Organização intuitiva
+- ✅ **Suporte a try-it-out** - Teste direto na interface
 
 ## 📡 Documentação das Rotas
 
@@ -629,6 +683,7 @@ FIPE_REFERENCE=324
 - **ESLint** com configuração rigorosa
 - **Prisma** para todas as operações de banco
 - **Zod** para validação de schemas
+- **Swagger/OpenAPI** para documentação de todas as rotas
 - **Tratamento centralizado de erros** com classes personalizadas
 - **Separação clara** entre rotas, serviços e utilitários
 - **Cache inteligente** com fallbacks para robustez

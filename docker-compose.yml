@@ -31,6 +31,8 @@ services:
       - /app/node_modules
     networks:
       - fipe-network
+    environment:
+      - NODE_ENV=development
 
 volumes:
   postgres_data:

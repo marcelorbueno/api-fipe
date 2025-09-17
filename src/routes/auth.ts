@@ -36,7 +36,13 @@ const refreshSchema = z.object({
 
 export async function authRoutes(app: FastifyInstance) {
   // POST /auth/login - Login do usuário
-  app.post('/auth/login', async (
+  app.post('/auth/login', {
+    schema: {
+      tags: ['Autenticação'],
+      summary: 'Fazer login na aplicação',
+      description: 'Autentica um usuário e retorna tokens de acesso e refresh',
+    },
+  }, async (
     req: FastifyRequest<{ Body: z.infer<typeof loginSchema> }>,
     res,
   ) => {
@@ -112,7 +118,63 @@ export async function authRoutes(app: FastifyInstance) {
   })
 
   // POST /auth/refresh - Renovar token
-  app.post('/auth/refresh', async (
+  app.post('/auth/refresh', {
+    schema: {
+      tags: ['Autenticação'],
+      summary: 'Renovar token de acesso',
+      description: 'Gera um novo token de acesso usando o refresh token',
+      body: {
+        type: 'object',
+        required: ['refreshToken'],
+        properties: {
+          refreshToken: {
+            type: 'string',
+            description: 'Token de renovação',
+          },
+        },
+      },
+      response: {
+        200: {
+          description: 'Token renovado com sucesso',
+          type: 'object',
+          properties: {
+            access_token: {
+              type: 'string',
+              description: 'Novo token de acesso JWT',
+            },
+            user: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', description: 'ID do usuário' },
+                name: { type: 'string', description: 'Nome do usuário' },
+                email: { type: 'string', description: 'Email do usuário' },
+                profile: {
+                  type: 'string',
+                  enum: ['ADMINISTRATOR', 'PARTNER', 'INVESTOR'],
+                  description: 'Perfil do usuário',
+                },
+              },
+            },
+          },
+        },
+        401: {
+          description: 'Refresh token inválido ou expirado',
+          type: 'object',
+          properties: {
+            error: { type: 'string' },
+          },
+        },
+        400: {
+          description: 'Erro de validação',
+          type: 'object',
+          properties: {
+            error: { type: 'string' },
+            details: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, async (
     req: FastifyRequest<{ Body: z.infer<typeof refreshSchema> }>,
     res,
   ) => {
@@ -166,7 +228,44 @@ export async function authRoutes(app: FastifyInstance) {
   })
 
   // POST /auth/logout - Logout
-  app.post('/auth/logout', async (
+  app.post('/auth/logout', {
+    schema: {
+      tags: ['Autenticação'],
+      summary: 'Fazer logout da aplicação',
+      description:
+        'Invalida o refresh token e adiciona o access token à blacklist',
+      security: [{ bearerAuth: [] }],
+      body: {
+        type: 'object',
+        required: ['refreshToken'],
+        properties: {
+          refreshToken: {
+            type: 'string',
+            description: 'Token de renovação a ser invalidado',
+          },
+        },
+      },
+      response: {
+        200: {
+          description: 'Logout realizado com sucesso',
+          type: 'object',
+          properties: {
+            message: {
+              type: 'string',
+            },
+          },
+        },
+        400: {
+          description: 'Erro no logout',
+          type: 'object',
+          properties: {
+            error: { type: 'string' },
+            details: { type: 'string' },
+          },
+        },
+      },
+    },
+  }, async (
     req: FastifyRequest<{ Body: z.infer<typeof refreshSchema> }>,
     res,
   ) => {
@@ -219,6 +318,60 @@ export async function authRoutes(app: FastifyInstance) {
 
   // GET /auth/me - Dados do usuário logado
   app.get('/auth/me', {
+    schema: {
+      tags: ['Autenticação'],
+      summary: 'Obter dados do usuário logado',
+      description: 'Retorna as informações do usuário autenticado',
+      security: [{ bearerAuth: [] }],
+      response: {
+        200: {
+          description: 'Dados do usuário',
+          type: 'object',
+          properties: {
+            user: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', description: 'ID do usuário' },
+                name: { type: 'string', description: 'Nome do usuário' },
+                email: { type: 'string', description: 'Email do usuário' },
+                profile: {
+                  type: 'string',
+                  enum: ['ADMINISTRATOR', 'PARTNER', 'INVESTOR'],
+                  description: 'Perfil do usuário',
+                },
+                phone_number: {
+                  type: 'string',
+                  description: 'Telefone do usuário',
+                },
+                is_active: {
+                  type: 'boolean',
+                  description: 'Se o usuário está ativo',
+                },
+                created_at: {
+                  type: 'string',
+                  format: 'date-time',
+                  description: 'Data de criação',
+                },
+              },
+            },
+          },
+        },
+        401: {
+          description: 'Usuário não autenticado',
+          type: 'object',
+          properties: {
+            error: { type: 'string' },
+          },
+        },
+        404: {
+          description: 'Usuário não encontrado',
+          type: 'object',
+          properties: {
+            error: { type: 'string' },
+          },
+        },
+      },
+    },
     preHandler: [app.authenticate],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const authRequest = request as AuthenticatedRequest

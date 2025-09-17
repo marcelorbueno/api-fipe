@@ -17,3 +17,4 @@ services:
 networks:
   fipe-network:
     external: true
+    name: api-fipe_fipe-network

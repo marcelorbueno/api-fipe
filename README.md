@@ -51,6 +51,12 @@ O API FIPE é um sistema completo de gestão patrimonial focado em veículos, de
 - **Supertest** - Testes de API
 - **ESLint** - Linting de código
 
+### Observabilidade e Monitoramento
+- **Tratamento robusto de erros** - Sistema centralizado com classes personalizadas
+- **Logs estruturados** - JSON logs com contexto de requisições
+- **Jaeger (Pronto)** - Rastreamento distribuído configurado
+- **Health Check** - Endpoint de monitoramento de saúde
+
 ## 🚀 Instalação e Setup
 
 ### Pré-requisitos
@@ -116,6 +122,18 @@ npm start
 ```
 
 A API estará disponível em: `http://localhost:3001`
+
+### 7. Jaeger (Observabilidade) - Opcional
+
+Para ativar o rastreamento distribuído:
+
+```bash
+# Iniciar Jaeger
+docker-compose -f docker-compose.jaeger.yml up -d
+
+# Acessar interface do Jaeger
+open http://localhost:16686
+```
 
 ## ⚙️ Variáveis de Ambiente
 
@@ -450,6 +468,128 @@ erDiagram
     }
 ```
 
+## 🔍 Tratamento de Erros e Observabilidade
+
+### 🚨 Sistema de Tratamento de Erros
+
+A API implementa um sistema robusto de tratamento de erros com:
+
+#### Classes de Erro Personalizadas
+```typescript
+// Erros disponíveis
+AppError           // Erro base da aplicação
+ValidationError    // Erro de validação (400)
+NotFoundError      // Recurso não encontrado (404)
+ConflictError      // Conflito de dados (409)
+UnauthorizedError  // Não autorizado (401)
+ForbiddenError     // Acesso negado (403)
+InternalServerError // Erro interno (500)
+ExternalServiceError // Falha em serviços externos (503)
+```
+
+#### Middleware Global de Erros
+- **Intercepta todos os erros** da aplicação automaticamente
+- **Logs estruturados** com contexto da requisição
+- **Respostas padronizadas** em formato JSON
+- **Validação automática** com Zod schemas
+
+#### Exemplo de Resposta de Erro
+```json
+{
+  "error": "Veículo não encontrado",
+  "code": "NOT_FOUND",
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "path": "/vehicles/123"
+}
+```
+
+### 📊 Sistema de Logs Estruturados
+
+#### Funcionalidades do Logger
+- **Logs JSON estruturados** para fácil parsing
+- **Contexto de requisições** (método, URL, IP, usuário)
+- **Múltiplos níveis**: ERROR, WARN, INFO, DEBUG
+- **Logs de performance** para operações lentas
+- **Logs de requisições** com headers e body
+
+#### Exemplo de Log
+```json
+{
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "level": "ERROR",
+  "message": "Application error occurred",
+  "request": {
+    "method": "POST",
+    "url": "/vehicles",
+    "userAgent": "Mozilla/5.0...",
+    "ip": "192.168.1.100",
+    "userId": "uuid-123"
+  },
+  "error": {
+    "name": "ValidationError",
+    "message": "Placa inválida",
+    "stack": "..."
+  }
+}
+```
+
+### 📈 Observabilidade com Jaeger
+
+#### Configuração do Jaeger
+O sistema está preparado para rastreamento distribuído:
+
+```bash
+# Iniciar Jaeger
+docker-compose -f docker-compose.jaeger.yml up -d
+
+# Interface Web
+http://localhost:16686
+```
+
+#### Spans Customizados Disponíveis
+- **database-operation** - Operações no banco de dados
+- **external-api-call** - Chamadas para APIs externas (FIPE)
+- **cache-operation** - Operações de cache
+- **user-authentication** - Processos de autenticação
+
+#### Configuração de Tracing
+```typescript
+// Exemplo de span customizado
+await withCustomSpan('database-operation',
+  { operation: 'create-vehicle', table: 'vehicles' },
+  async () => {
+    return await prisma.vehicle.create(data)
+  }
+)
+```
+
+### 🔧 Configuração de Observabilidade
+
+#### Variáveis de Ambiente para Tracing
+```bash
+# Ativar tracing (opcional)
+JAEGER_ENDPOINT=http://localhost:14268/api/traces
+SERVICE_NAME=api-fipe
+SERVICE_VERSION=1.0.0
+```
+
+#### Health Check Avançado
+```bash
+# Verificar saúde da API
+curl http://localhost:3001/health
+
+# Resposta
+{
+  "status": "ok",
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "uptime": "2h 30m 45s",
+  "database": "connected",
+  "external_apis": {
+    "fipe": "available"
+  }
+}
+```
+
 ## 🧪 Executando Testes
 
 ### Configuração dos Testes
@@ -674,6 +814,8 @@ FIPE_REFERENCE=324
 - **Logs estruturados** com informações de patrimônio
 - **Cache status** visível nos logs de operação
 - **Métricas de API FIPE** nos logs
+- **Jaeger Tracing**: Interface em `http://localhost:16686`
+- **Sistema de alertas** via logs estruturados
 
 ## 🤝 Contribuição
 

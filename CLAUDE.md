@@ -108,6 +108,26 @@ Variáveis de ambiente principais (verificar arquivo `.env`):
 - Hash de senhas com bcrypt
 - Rotas protegidas usam middleware `authenticate`
 
+### Error Handling e Observabilidade
+
+#### Sistema de Tratamento de Erros
+- **Classes de erro customizadas**: `AppError`, `ValidationError`, `NotFoundError`, `ConflictError`, `UnauthorizedError`, `ForbiddenError`, `InternalServerError`, `ExternalServiceError`
+- **Error handler global**: Registrado no Fastify via `setErrorHandler`
+- **Logging estruturado**: Sistema de logs JSON com contexto de request, timestamps e stack traces
+- **Middleware de segurança**: Logs automáticos de tentativas de acesso não autorizadas
+- **Middleware de performance**: Logs automáticos de requests lentos (>1s)
+
+#### Observabilidade com OpenTelemetry + Jaeger
+- **Tracing distribuído**: Instrumentação automática HTTP, Fastify, e operações de sistema
+- **Spans customizados**: Wrappers para operações de banco (`withDatabaseSpan`), APIs externas (`withExternalApiSpan`), e cache (`withCacheSpan`)
+- **Contexto de usuário**: Informações de usuário automaticamente adicionadas aos spans
+- **Métricas de performance**: Duração, uso de memória e CPU nos traces
+
+#### Comandos de Observabilidade
+- `docker compose -f docker-compose.jaeger.yml up -d` - Iniciar Jaeger localmente
+- **Jaeger UI**: Disponível em `http://localhost:16686`
+- **Configuração**: Via variáveis `JAEGER_ENDPOINT` (padrão: `http://localhost:14268/api/traces`)
+
 ### Regras de Negócio Específicas
 
 #### Distribuição de Patrimônio da Empresa

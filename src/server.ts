@@ -1,6 +1,8 @@
 import './env/setup'
+import './tracing'
 import { app } from './app'
 import fastifyCors from '@fastify/cors'
+import { setupGlobalErrorHandlers } from './middleware/error-middleware'
 import fastifyJwt from '@fastify/jwt'
 import fastifySwagger from '@fastify/swagger'
 import fastifySwaggerUi from '@fastify/swagger-ui'
@@ -19,6 +21,11 @@ const PORT = env.PORT
 
 async function start() {
   try {
+    // Setup global error handlers
+    setupGlobalErrorHandlers()
+
+    // Sistema de logging e error handling configurado
+
     // Registrar CORS
     await app.register(fastifyCors, { origin: '*' })
 

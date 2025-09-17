@@ -1,4 +1,6 @@
 import { env } from '../env'
+import { ExternalServiceError } from '../utils/error-handler'
+import { withExternalApiSpan } from '../tracing/custom-spans'
 
 interface FipeBrand {
   code: number
@@ -35,11 +37,20 @@ export class FipeAPI {
 
   // Buscar marcas
   async getBrands(vehicleType: VehicleType): Promise<FipeBrand[]> {
-    const response = await fetch(`${this.baseURL}/${vehicleType}/brands`)
-    if (!response.ok) {
-      throw new Error(`Failed to fetch brands: ${response.statusText}`)
-    }
-    return response.json() as Promise<FipeBrand[]>
+    return withExternalApiSpan(
+      'FIPE-API',
+      `/${vehicleType}/brands`,
+      async () => {
+        const response = await fetch(`${this.baseURL}/${vehicleType}/brands`)
+        if (!response.ok) {
+          throw new ExternalServiceError(
+            'FIPE API',
+            `Failed to fetch brands: ${response.statusText}`,
+          )
+        }
+        return response.json() as Promise<FipeBrand[]>
+      },
+    )
   }
 
   // Buscar modelos
@@ -51,7 +62,10 @@ export class FipeAPI {
     const response = await fetch(url)
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch models: ${response.statusText}`)
+      throw new ExternalServiceError(
+        'FIPE API',
+        `Failed to fetch models: ${response.statusText}`,
+      )
     }
     return response.json() as Promise<FipeModel[]>
   }
@@ -68,7 +82,10 @@ export class FipeAPI {
     const response = await fetch(url)
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch years: ${response.statusText}`)
+      throw new ExternalServiceError(
+        'FIPE API',
+        `Failed to fetch years: ${response.statusText}`,
+      )
     }
     return response.json() as Promise<FipeYear[]>
   }
@@ -88,7 +105,10 @@ export class FipeAPI {
     const response = await fetch(url)
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch value: ${response.statusText}`)
+      throw new ExternalServiceError(
+        'FIPE API',
+        `Failed to fetch value: ${response.statusText}`,
+      )
     }
 
     const data = await response.json() as FipeValue

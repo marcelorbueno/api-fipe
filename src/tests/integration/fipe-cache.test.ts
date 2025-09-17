@@ -43,7 +43,7 @@ describe('FIPE Cache System', () => {
       const cache = await prisma.fipeCache.create({ data: cacheData })
 
       expect(cache).toHaveProperty('id')
-      expect(cache.fipe_value).toBe(50000)
+      expect(Number(cache.fipe_value)).toBe(50000)
       expect(cache.brand_code).toBe(21)
     })
 

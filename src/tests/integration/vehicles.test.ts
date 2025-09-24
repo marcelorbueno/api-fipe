@@ -38,11 +38,6 @@ describe('Vehicles Routes', () => {
   })
 
   describe('GET /vehicles', () => {
-    beforeEach(async () => {
-    // Limpar todos os dados antes de cada teste
-      await cleanupTestData()
-    })
-
     test('should return empty list when no vehicles exist', async () => {
       const response = await server.inject({
         method: 'GET',
@@ -221,11 +216,6 @@ describe('Vehicles Routes', () => {
   })
 
   describe('Vehicle Ownership Management', () => {
-    beforeEach(async () => {
-      // Garantir limpeza completa antes de cada teste
-      await cleanupTestData()
-    })
-
     let vehicleId: string
 
     beforeEach(async () => {

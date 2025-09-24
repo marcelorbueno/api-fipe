@@ -284,8 +284,10 @@ describe('Auth Routes', () => {
   })
 
   describe('POST /auth/logout', () => {
+    let accessToken: string
+
     beforeEach(async () => {
-      // Fazer login para obter refresh token
+      // Fazer login para obter refresh token e access token
       const loginResponse = await server.inject({
         method: 'POST',
         url: '/auth/login',
@@ -300,6 +302,7 @@ describe('Auth Routes', () => {
 
       const loginBody = JSON.parse(loginResponse.body)
       refreshToken = loginBody.refresh_token
+      accessToken = loginBody.access_token
     })
 
     test('should logout successfully', async () => {
@@ -308,6 +311,7 @@ describe('Auth Routes', () => {
         url: '/auth/logout',
         headers: {
           'content-type': 'application/json',
+          authorization: `Bearer ${accessToken}`,
         },
         payload: {
           refreshToken,
@@ -332,13 +336,14 @@ describe('Auth Routes', () => {
         url: '/auth/logout',
         headers: {
           'content-type': 'application/json',
+          authorization: `Bearer ${accessToken}`,
         },
         payload: {
           refreshToken: 'invalid-token',
         },
       })
 
-      expect(response.statusCode).toBe(400)
+      expect(response.statusCode).toBe(401)
 
       const body = JSON.parse(response.body)
       expect(body).toHaveProperty('error')

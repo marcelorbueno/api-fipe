@@ -9,9 +9,9 @@ import { TokenBlacklistService } from '../services/token-blacklist-service'
 // Interface local que sobrescreve a tipagem padrão
 interface AuthenticatedRequest extends FastifyRequest {
   user: {
+    userId: string
     email: string
     profile?: 'ADMINISTRATOR' | 'PARTNER' | 'INVESTOR'
-    sub?: string
   }
 }
 
@@ -255,6 +255,13 @@ export async function authRoutes(app: FastifyInstance) {
             },
           },
         },
+        401: {
+          description: 'Não autorizado',
+          type: 'object',
+          properties: {
+            error: { type: 'string' },
+          },
+        },
         400: {
           description: 'Erro no logout',
           type: 'object',
@@ -265,16 +272,30 @@ export async function authRoutes(app: FastifyInstance) {
         },
       },
     },
-  }, async (
-    req: FastifyRequest<{ Body: z.infer<typeof refreshSchema> }>,
-    res,
-  ) => {
+    preHandler: [app.authenticate],
+  }, async (req: FastifyRequest, res: FastifyReply) => {
     try {
       const { refreshToken } = refreshSchema.parse(req.body)
+      const authRequest = req as AuthenticatedRequest
 
       // Extrair access token do header
       const authHeader = req.headers.authorization
       const accessToken = authHeader?.replace('Bearer ', '')
+
+      // Verificar se o refresh token pertence ao usuário autenticado
+      const refreshTokenData = await prisma.refreshToken.findUnique({
+        where: { token: refreshToken },
+        select: { user_id: true },
+      })
+
+      if (
+        !refreshTokenData ||
+        refreshTokenData.user_id !== authRequest.user.userId
+      ) {
+        return res.status(401).send({
+          error: 'Refresh token não pertence ao usuário autenticado',
+        })
+      }
 
       // Remover refresh token
       await prisma.refreshToken.delete({

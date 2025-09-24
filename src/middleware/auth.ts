@@ -2,6 +2,7 @@ import { env } from '@/env'
 import { FastifyRequest, FastifyReply } from 'fastify'
 import jwt from 'jsonwebtoken'
 import { TokenBlacklistService } from '../services/token-blacklist-service'
+import { prisma } from '../lib/prisma'
 
 interface JWTPayload {
   sub: string,
@@ -44,10 +45,22 @@ export async function authenticate(
 
     const decoded = jwt.verify(token, JWT_SECRET) as JWTPayload
 
+    // Verificar se o usuário ainda está ativo no banco
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.sub },
+      select: { is_active: true, profile: true },
+    })
+
+    if (!user || !user.is_active) {
+      return reply.status(401).send({
+        error: 'Usuário inativo ou não encontrado',
+      })
+    }
+
     request.user = {
       userId: decoded.sub,
       email: decoded.email,
-      profile: decoded.profile,
+      profile: user.profile,
     }
   } catch {
     return reply.status(401).send({

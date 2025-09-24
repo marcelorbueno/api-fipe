@@ -701,7 +701,9 @@ export async function usersRoutes(app: FastifyInstance) {
 
       // Calcular média de veículos por usuário
       const vehicleOwnershipCount = await prisma.vehicleOwnership.count()
-      const averageVehiclesPerUser = totalUsers > 0 ? vehicleOwnershipCount / totalUsers : 0
+      const averageVehiclesPerUser = totalUsers > 0
+        ? vehicleOwnershipCount / totalUsers
+        : 0
 
       // Formatar dados de usuários por perfil
       const profileStats = usersByProfile.reduce((acc, item) => {

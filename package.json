@@ -9,6 +9,7 @@
     "vercel-build": "npx prisma generate && tsc",
     "prisma": "prisma",
     "seed": "ts-node -r tsconfig-paths/register src/scripts/seed.ts",
+    "seed-full": "ts-node -r tsconfig-paths/register src/scripts/seed-full.ts",
     "_comment_tests": "Scripts de teste atualizados",
     "test": "jest",
     "test:watch": "jest --watch",

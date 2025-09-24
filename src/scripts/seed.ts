@@ -12,12 +12,12 @@ async function main() {
   // Criar usuário administrador
   console.log('👤 Criando usuário administrador...')
 
-  const adminPassword = await bcrypt.hash('admin123', 10)
+  const adminPassword = await bcrypt.hash('bmc040526', 10)
   const adminUser = await prisma.user.create({
     data: {
       name: 'Admin BMC Car',
       num_cpf: '11111111111',
-      email: 'admin@bmccar.com',
+      email: 'contato@bmccar.com',
       password: adminPassword,
       birthday: new Date('1980-01-01'),
       phone_number: '11999999999',

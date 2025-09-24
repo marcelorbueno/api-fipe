@@ -4,8 +4,9 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only -r tsconfig-paths/register src/server.ts",
-    "build": "tsc",
-    "start": "ts-node -r tsconfig-paths/register dist/server.js",
+    "build": "tsc && npx prisma generate",
+    "start": "node dist/server.js",
+    "vercel-build": "npx prisma generate && tsc",
     "prisma": "prisma",
     "seed": "ts-node -r tsconfig-paths/register src/scripts/seed.ts",
     "_comment_tests": "Scripts de teste atualizados",
@@ -58,6 +59,9 @@
     "pg-connection-string": "^2.9.1",
     "prisma": "^6.13.0",
     "zod": "3.25.32"
+  },
+  "engines": {
+    "node": ">=22.0.0"
   },
   "devDependencies": {
     "@rocketseat/eslint-config": "3.0.12",

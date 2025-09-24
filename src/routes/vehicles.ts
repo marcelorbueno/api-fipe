@@ -1255,7 +1255,7 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         vehicles_by_type: vehicleTypeStats,
         ownership_stats: {
           total_ownerships: ownershipStats._count.ownership_percentage || 0,
-          average_ownership_percentage: Math.round((ownershipStats._avg.ownership_percentage || 0) * 100) / 100,
+          average_ownership_percentage: Math.round((Number(ownershipStats._avg.ownership_percentage) || 0) * 100) / 100,
         },
       }
 

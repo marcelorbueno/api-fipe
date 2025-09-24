@@ -56,6 +56,12 @@ async function start() {
             url: 'http://localhost:3001',
             description: 'Docker container',
           },
+          ...(process.env.VERCEL_URL
+            ? [{
+                url: `https://${process.env.VERCEL_URL}`,
+                description: 'Production server (Vercel)',
+              }]
+            : []),
         ],
         components: {
           securitySchemes: {

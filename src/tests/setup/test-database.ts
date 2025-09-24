@@ -6,13 +6,13 @@ const envTestPath = path.resolve(process.cwd(), '.env.test')
 dotenv.config({ path: envTestPath })
 
 // Re-exportar o prisma do lib (que já tem a lógica de ambiente)
-export { prisma } from '../../lib/prisma'
+export { prisma } from '@/lib/prisma'
 
 /**
  * Limpar todos os dados de teste
  */
 export async function cleanupAllTestData(): Promise<void> {
-  const { prisma } = await import('../../lib/prisma')
+  const { prisma } = await import('../../lib/prisma.js')
 
   try {
     // Ordem importante para respeitar foreign keys

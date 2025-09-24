@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:22-alpine
 
 # Configurar proxy
 ENV http_proxy=http://10.3.2.55:3128/ \

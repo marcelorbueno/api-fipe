@@ -2,13 +2,13 @@
 import Fastify, { FastifyInstance } from 'fastify'
 import fastifyCors from '@fastify/cors'
 import fastifyJwt from '@fastify/jwt'
-import { authenticate } from '../../middleware/auth'
-import { healthRoutes } from '../../routes/health'
-import { authRoutes } from '../../routes/auth'
-import { fipeRoutes } from '../../routes/fipe'
-import { usersRoutes } from '../../routes/users'
-import { vehiclesRoutes } from '../../routes/vehicles'
-import { patrimonyRoutes } from '../../routes/patrimony'
+import { authenticate } from '@/middleware/auth'
+import { healthRoutes } from '@/routes/health'
+import { authRoutes } from '@/routes/auth'
+import { fipeRoutes } from '@/routes/fipe'
+import { usersRoutes } from '@/routes/users'
+import { vehiclesRoutes } from '@/routes/vehicles'
+import { patrimonyRoutes } from '@/routes/patrimony'
 
 export async function createTestServer(): Promise<FastifyInstance> {
   // Criar nova instância do Fastify para testes

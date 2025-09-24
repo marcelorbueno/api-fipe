@@ -10,7 +10,7 @@ import { FastifyInstance } from 'fastify'
 import { createTestServer, closeTestServer } from '../setup/test-server'
 import { AuthHelper, cleanupTestData } from '../helpers/auth-helper'
 import { prisma } from '@/lib/prisma'
-import { PatrimonyService } from '../../services/patrimony-service'
+import { PatrimonyService } from '@/services/patrimony-service'
 import { VehicleType } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 

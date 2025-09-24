@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { UserProfile, VehicleType } from '@prisma/client'
-import { generateLicencePlate } from '../../lib/generateLicencePlate'
+import { generateLicencePlate } from '@/lib/generateLicencePlate'
 
 export interface TestUser {
   id: string

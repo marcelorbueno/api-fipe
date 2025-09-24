@@ -6,8 +6,6 @@ import { setupGlobalErrorHandlers } from './middleware/error-middleware'
 import fastifyJwt from '@fastify/jwt'
 import fastifySwagger from '@fastify/swagger'
 import fastifySwaggerUi from '@fastify/swagger-ui'
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const scalarApiReference = require('@scalar/fastify-api-reference')
 import { authenticate } from './middleware/auth'
 import { fipeRoutes } from './routes/fipe'
 import { authRoutes } from './routes/auth'
@@ -96,22 +94,25 @@ async function start() {
     })
 
     // Registrar Scalar API Reference
-    await app.register(scalarApiReference.default || scalarApiReference, {
+    const { default: scalarApiReference } = await import(
+      '@scalar/fastify-api-reference'
+    )
+    // Type assertion needed due to compatibility issues
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await app.register(scalarApiReference as any, {
       routePrefix: '/reference',
       configuration: {
+        spec: {
+          url: '/docs/json',
+        },
         theme: 'purple',
         layout: 'modern',
-        apiReference: {
-          metaData: {
-            title: 'API FIPE - BMC Documentation',
-            description: 'Beautiful API documentation powered by Scalar',
-            ogDescription:
-              'API para gerenciamento de veículos, usuários e patrimônio',
-          },
+        metaData: {
+          title: 'API FIPE - BMC Documentation',
+          description: 'Beautiful API documentation powered by Scalar',
+          ogDescription:
+            'API para gerenciamento de veículos, usuários e patrimônio',
         },
-      },
-      spec: {
-        url: '/docs/json',
       },
     })
 

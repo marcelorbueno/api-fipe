@@ -226,7 +226,7 @@ docker-compose up -d
 |--------|------|-----------|-----------|
 | `POST` | `/auth/login` | Login do usuário | `{ email, password }` |
 | `POST` | `/auth/refresh` | Renovar token | `{ refreshToken }` |
-| `POST` | `/auth/logout` | **Logout imediato** com blacklist | `{ refreshToken }` + Bearer Token |
+| `POST` | `/auth/logout` | **Logout imediato** com blacklist | `{ refreshToken }` + Bearer Token ✅ |
 | `GET` | `/auth/me` | Dados do usuário logado | ✅ |
 | `GET` | `/auth/blacklist/stats` | Estatísticas da blacklist | 👨‍💼 Admin |
 | `POST` | `/auth/blacklist/cleanup` | Limpeza de tokens expirados | 👨‍💼 Admin |
@@ -321,9 +321,13 @@ docker-compose up -d
 - Tokens são **revogados instantaneamente** no logout
 - **Limpeza automática** de tokens expirados
 - Proteção contra uso de tokens após logout
+- **Autenticação obrigatória** no logout - apenas o próprio usuário pode fazer logout
 
 #### 🛡️ Segurança Aprimorada
 - **Verificação dupla**: expiração natural + blacklist
+- **Validação de usuário ativo** em todas as rotas protegidas
+- **Bloqueio imediato** de usuários inativos
+- **Validação de propriedade** do refresh token no logout
 - **Monitoramento** de tokens revogados via admin
 - **Performance otimizada** com índices no PostgreSQL
 - **Tolerante a falhas** - funciona mesmo se blacklist não existir
@@ -672,7 +676,18 @@ curl -X POST http://localhost:3001/auth/login \
   }'
 ```
 
-### 3. Cadastrar Veículo da Empresa
+### 3. Fazer Logout Seguro
+
+```bash
+curl -X POST http://localhost:3001/auth/logout \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer SEU_ACCESS_TOKEN" \
+  -d '{
+    "refreshToken": "SEU_REFRESH_TOKEN"
+  }'
+```
+
+### 4. Cadastrar Veículo da Empresa
 
 ```bash
 curl -X POST http://localhost:3001/vehicles \
@@ -689,7 +704,7 @@ curl -X POST http://localhost:3001/vehicles \
   }'
 ```
 
-### 4. Consultar Patrimônio da Empresa
+### 5. Consultar Patrimônio da Empresa
 
 ```bash
 curl -X GET http://localhost:3001/patrimony/company \

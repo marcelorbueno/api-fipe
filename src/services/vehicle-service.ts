@@ -19,7 +19,14 @@ export interface VehicleCreateData {
   display_fuel?: string
   brand_name?: string
   model_name?: string
-  color?: string
+  color?:
+    | 'AZUL'
+    | 'BRANCA'
+    | 'CINZA'
+    | 'PRATA'
+    | 'PRETA'
+    | 'MARROM'
+    | 'VERMELHA'
   observations?: string
   purchase_date?: string
   purchase_value?: number
@@ -41,7 +48,15 @@ export interface VehicleWithOwnerships {
   display_fuel?: string | null
   brand_name?: string | null
   model_name?: string | null
-  color?: string | null
+  color?:
+    | 'AZUL'
+    | 'BRANCA'
+    | 'CINZA'
+    | 'PRATA'
+    | 'PRETA'
+    | 'MARROM'
+    | 'VERMELHA'
+    | null
   observations?: string | null
   purchase_date?: Date | null
   purchase_value?: Decimal | null

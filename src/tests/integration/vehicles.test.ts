@@ -91,7 +91,7 @@ describe('Vehicles Routes', () => {
         fipe_model_code: 7541,
         year_id: '2017-5',
         vehicle_type: VehicleType.cars,
-        color: 'Branco',
+        color: 'BRANCA',
         is_company_vehicle: false,
         purchase_value: 35000,
       }

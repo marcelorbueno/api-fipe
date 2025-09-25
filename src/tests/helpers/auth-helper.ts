@@ -31,7 +31,14 @@ export interface TestVehicle {
   display_fuel?: string
   brand_name?: string
   model_name?: string
-  color?: string
+  color?:
+    | 'AZUL'
+    | 'BRANCA'
+    | 'CINZA'
+    | 'PRATA'
+    | 'PRETA'
+    | 'MARROM'
+    | 'VERMELHA'
   observations?: string
   purchase_date?: Date
   purchase_value?: number
@@ -50,7 +57,14 @@ export interface CreateTestVehicleOptions {
   display_fuel?: string
   brand_name?: string
   model_name?: string
-  color?: string
+  color?:
+    | 'AZUL'
+    | 'BRANCA'
+    | 'CINZA'
+    | 'PRATA'
+    | 'PRETA'
+    | 'MARROM'
+    | 'VERMELHA'
   observations?: string
   purchase_date?: Date
   purchase_value?: number
@@ -192,7 +206,7 @@ export class AuthHelper {
       display_fuel: finalOptions.display_fuel ?? 'Gasolina',
       brand_name: finalOptions.brand_name ?? 'Fiat',
       model_name: finalOptions.model_name ?? 'Uno Mille 1.0',
-      color: finalOptions.color ?? 'Branco',
+      color: finalOptions.color ?? 'BRANCA',
       observations: finalOptions.observations ?? 'Veículo de teste',
       purchase_date: finalOptions.purchase_date ?? new Date('2020-01-01'),
       purchase_value: finalOptions.purchase_value ?? 35000.00,

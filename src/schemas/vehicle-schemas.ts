@@ -61,7 +61,15 @@ export const createVehicleSchema = z.object({
   display_fuel: z.string().optional(),
   brand_name: z.string().optional(),
   model_name: z.string().optional(),
-  color: z.string().optional(),
+  color: z.enum([
+    'AZUL', 'BRANCA', 'CINZA', 'PRATA', 'PRETA', 'MARROM', 'VERMELHA',
+  ], {
+    errorMap: () => ({
+      message:
+        'Cor deve ser uma das opções: AZUL, BRANCA, CINZA, PRATA, PRETA, ' +
+        'MARROM, VERMELHA',
+    }),
+  }).optional(),
   observations: z.string().optional().nullable(),
   purchase_date: z.string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Data deve estar no formato YYYY-MM-DD')

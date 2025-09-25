@@ -20,7 +20,9 @@ const createVehicleSchema = z.object({
   display_fuel: z.string().optional(),
   brand_name: z.string().optional(),
   model_name: z.string().optional(),
-  color: z.string().optional(),
+  color: z.enum([
+    'AZUL', 'BRANCA', 'CINZA', 'PRATA', 'PRETA', 'MARROM', 'VERMELHA',
+  ]).optional(),
   observations: z.string().optional().nullable(),
   purchase_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, {
     message: 'Data deve estar no formato YYYY-MM-DD',
@@ -265,7 +267,8 @@ export async function vehiclesRoutes(app: FastifyInstance) {
       // Validar formato do year_id
       if (!data.year_id.match(/^\d{4}-\d+$/)) {
         return res.status(400).send({
-          error: 'Formato de year_id inválido. Use o formato YYYY-N (ex: 2017-5)',
+          error:
+            'Formato de year_id inválido. Use o formato YYYY-N (ex: 2017-5)',
         })
       }
 
@@ -1255,7 +1258,9 @@ export async function vehiclesRoutes(app: FastifyInstance) {
         vehicles_by_type: vehicleTypeStats,
         ownership_stats: {
           total_ownerships: ownershipStats._count.ownership_percentage || 0,
-          average_ownership_percentage: Math.round((Number(ownershipStats._avg.ownership_percentage) || 0) * 100) / 100,
+          average_ownership_percentage: Math.round(
+            (Number(ownershipStats._avg.ownership_percentage) || 0) * 100,
+          ) / 100,
         },
       }
 

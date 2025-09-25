@@ -1,9 +1,6 @@
-// src/lib/formatters.ts
-
 /**
  * Converte campos Decimal do Prisma para number nas respostas da API
  */
-
 import { Decimal } from '@prisma/client/runtime/library'
 
 // Tipos que representam o que vem do Prisma (com Decimal)
@@ -35,7 +32,15 @@ export interface PrismaVehicle {
   display_fuel?: string | null
   brand_name?: string | null
   model_name?: string | null
-  color?: string | null
+  color?:
+    | 'AZUL'
+    | 'BRANCA'
+    | 'CINZA'
+    | 'PRATA'
+    | 'PRETA'
+    | 'MARROM'
+    | 'VERMELHA'
+    | null
   observations?: string | null
   purchase_date?: Date | null
   purchase_value?: Decimal | null
@@ -74,7 +79,15 @@ export interface VehicleWithOwnerships {
   display_fuel?: string | null
   brand_name?: string | null
   model_name?: string | null
-  color?: string | null
+  color?:
+    | 'AZUL'
+    | 'BRANCA'
+    | 'CINZA'
+    | 'PRATA'
+    | 'PRETA'
+    | 'MARROM'
+    | 'VERMELHA'
+    | null
   observations?: string | null
   purchase_date?: Date | null
   purchase_value?: number | null

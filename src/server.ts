@@ -141,4 +141,13 @@ async function start() {
   }
 }
 
-start()
+// Para desenvolvimento local
+if (require.main === module) {
+  start()
+}
+
+// Para Vercel - exportar o app Fastify
+export default async (req: any, res: any) => {
+  await app.ready()
+  app.server.emit('request', req, res)
+}

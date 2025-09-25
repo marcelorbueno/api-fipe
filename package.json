@@ -2,6 +2,9 @@
   "name": "api-fipe",
   "version": "1.0.0",
   "main": "api/index.ts",
+  "engines": {
+    "node": "18.x"
+  },
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only -r tsconfig-paths/register src/server.ts",
     "build": "tsc && npx prisma generate",

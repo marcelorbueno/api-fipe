@@ -15,7 +15,7 @@ import { usersRoutes } from './routes/users'
 import { vehiclesRoutes } from './routes/vehicles'
 import { patrimonyRoutes } from './routes/patrimony'
 
-const PORT = env.PORT
+const PORT = process.env.PORT || env.PORT
 
 async function start() {
   try {
@@ -141,4 +141,5 @@ async function start() {
   }
 }
 
+// Para Railway - usar a porta fornecida pela plataforma
 start()

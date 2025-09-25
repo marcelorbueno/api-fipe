@@ -1,4 +1,4 @@
-import { env } from '@/env'
+import { env } from '../env'
 import { FastifyRequest, FastifyReply } from 'fastify'
 import jwt from 'jsonwebtoken'
 import { TokenBlacklistService } from '../services/token-blacklist-service'

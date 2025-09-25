@@ -7,7 +7,7 @@ import fastifySwagger from '@fastify/swagger'
 import fastifySwaggerUi from '@fastify/swagger-ui'
 import { setupGlobalErrorHandlers } from '../src/middleware/error-middleware'
 import { authenticate } from '../src/middleware/auth'
-import { env } from '../src/env'
+import { env } from '../src/env/index'
 
 // Import routes
 import { authRoutes } from '../src/routes/auth'

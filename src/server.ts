@@ -1,3 +1,8 @@
+console.log('🟢 Starting BMC API FIPE application...')
+console.log('📦 Node.js version:', process.version)
+console.log('🌍 Environment:', process.env.NODE_ENV || 'development')
+console.log('🚀 Port:', process.env.PORT || '3001')
+
 import './env/setup'
 import './tracing'
 import { app } from './app'
@@ -111,30 +116,38 @@ async function start() {
     })
     console.log('✅ Swagger UI registered')
 
-    // Registrar Scalar API Reference
-    console.log('🔧 Registering Scalar API Reference...')
-    const { default: scalarApiReference } = await import(
-      '@scalar/fastify-api-reference'
-    )
-    // Type assertion needed due to compatibility issues
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await app.register(scalarApiReference as any, {
-      routePrefix: '/reference',
-      configuration: {
-        spec: {
-          url: '/docs/json',
-        },
-        theme: 'purple',
-        layout: 'modern',
-        metaData: {
-          title: 'API FIPE - BMC Documentation',
-          description: 'Beautiful API documentation powered by Scalar',
-          ogDescription:
-            'API para gerenciamento de veículos, usuários e patrimônio',
-        },
-      },
-    })
-    console.log('✅ Scalar API Reference registered')
+    // Skip Scalar API Reference in production to avoid startup issues
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🔧 Registering Scalar API Reference...')
+      try {
+        const { default: scalarApiReference } = await import(
+          '@scalar/fastify-api-reference'
+        )
+        // Type assertion needed due to compatibility issues
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await app.register(scalarApiReference as any, {
+          routePrefix: '/reference',
+          configuration: {
+            spec: {
+              url: '/docs/json',
+            },
+            theme: 'purple',
+            layout: 'modern',
+            metaData: {
+              title: 'API FIPE - BMC Documentation',
+              description: 'Beautiful API documentation powered by Scalar',
+              ogDescription:
+                'API para gerenciamento de veículos, usuários e patrimônio',
+            },
+          },
+        })
+        console.log('✅ Scalar API Reference registered')
+      } catch (error) {
+        console.log('⚠️ Scalar API Reference failed, continuing...', error)
+      }
+    } else {
+      console.log('⏭️ Skipping Scalar API Reference in production')
+    }
 
     // Registrar JWT
     console.log('🔧 Registering JWT...')

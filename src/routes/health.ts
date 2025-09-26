@@ -1,22 +1,38 @@
 import { FastifyInstance, FastifyReply } from 'fastify'
 import axios from '../config/axios'
 import { env } from '../env'
+import { prisma } from '../lib/prisma'
 
 export async function healthRoutes(app: FastifyInstance) {
   // 🔍 Health Check - Teste de conexão
   app.get('/health', async (_, reply: FastifyReply) => {
     try {
+      // Test database connection
+      let dbStatus = 'disconnected'
+      let dbError = null
+
+      try {
+        await prisma.$queryRaw`SELECT 1`
+        dbStatus = 'connected'
+        console.log('✅ Database health check passed')
+      } catch (error) {
+        dbStatus = 'error'
+        dbError = error instanceof Error ? error.message : 'Unknown error'
+        console.error('❌ Database health check failed:', error)
+      }
+
       // Dados básicos (sempre disponíveis)
       const healthData = {
-        status: 'OK',
+        status: dbStatus === 'connected' ? 'OK' : 'DEGRADED',
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
         environment: env.NODE_ENV,
         version: '1.0.0',
         services: {
-          database: 'connected',
+          database: dbStatus,
           api: 'running',
         },
+        ...(dbError && { database_error: dbError }),
       }
 
       // ⚠️ Informações detalhadas apenas em desenvolvimento

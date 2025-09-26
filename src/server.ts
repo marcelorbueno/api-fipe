@@ -1,6 +1,7 @@
 import './env/setup'
 import './tracing'
 import { app } from './app'
+import { prisma } from './lib/prisma'
 import fastifyCors from '@fastify/cors'
 import { setupGlobalErrorHandlers } from './middleware/error-middleware'
 import fastifyJwt from '@fastify/jwt'
@@ -21,6 +22,12 @@ async function start() {
   try {
     // Setup global error handlers
     setupGlobalErrorHandlers()
+
+    // Test database connection early
+    console.log('🔌 Testing database connection...')
+    await prisma.$connect()
+    await prisma.$queryRaw`SELECT 1`
+    console.log('✅ Database connection successful')
 
     // Sistema de logging e error handling configurado
 
@@ -140,6 +147,22 @@ async function start() {
     process.exit(1)
   }
 }
+
+// Graceful shutdown
+const gracefulShutdown = async () => {
+  console.log('🔄 Graceful shutdown initiated...')
+  try {
+    await prisma.$disconnect()
+    console.log('✅ Database disconnected')
+    process.exit(0)
+  } catch (error) {
+    console.error('❌ Error during shutdown:', error)
+    process.exit(1)
+  }
+}
+
+process.on('SIGINT', gracefulShutdown)
+process.on('SIGTERM', gracefulShutdown)
 
 // Para Railway - usar a porta fornecida pela plataforma
 start()

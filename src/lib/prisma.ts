@@ -11,6 +11,13 @@ const getDatabaseUrl = () => {
   return process.env.DATABASE_URL
 }
 
+console.log('🔧 Database configuration:', {
+  NODE_ENV: process.env.NODE_ENV,
+  DATABASE_URL: process.env.DATABASE_URL ?
+    process.env.DATABASE_URL.replace(/:[^:@]*@/, ':***@') :
+    'NOT_SET'
+})
+
 export const prisma = new PrismaClient({
   datasources: {
     db: {
@@ -20,4 +27,5 @@ export const prisma = new PrismaClient({
   log: process.env.NODE_ENV === 'development'
     ? ['query', 'error']
     : ['error'],
+  errorFormat: 'pretty',
 })

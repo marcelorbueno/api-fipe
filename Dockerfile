@@ -1,7 +1,7 @@
 FROM node:18-alpine
 
-# Install dependencies needed for Prisma
-RUN apk add --no-cache openssl
+# Install dependencies needed for Prisma and networking
+RUN apk add --no-cache openssl curl
 
 # Create app directory
 WORKDIR /app
@@ -22,8 +22,17 @@ COPY . .
 # Build the application
 RUN npm run build
 
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S nextjs -u 1001
+USER nextjs
+
 # Expose port
 EXPOSE 3001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD curl -f http://localhost:3001/health || exit 1
 
 # Start the application
 CMD ["npm", "start"]

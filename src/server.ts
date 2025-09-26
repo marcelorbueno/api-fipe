@@ -25,16 +25,24 @@ async function start() {
 
     // Test database connection early
     console.log('🔌 Testing database connection...')
-    await prisma.$connect()
-    await prisma.$queryRaw`SELECT 1`
-    console.log('✅ Database connection successful')
+    try {
+      await prisma.$connect()
+      await prisma.$queryRaw`SELECT 1`
+      console.log('✅ Database connection successful')
+    } catch (error) {
+      console.error('❌ Database connection failed:', error)
+      // Continue anyway to see other potential issues
+    }
 
     // Sistema de logging e error handling configurado
 
     // Registrar CORS
+    console.log('🔧 Registering CORS...')
     await app.register(fastifyCors, { origin: '*' })
+    console.log('✅ CORS registered')
 
     // Registrar Swagger
+    console.log('🔧 Registering Swagger...')
     await app.register(fastifySwagger, {
       openapi: {
         openapi: '3.0.0',
@@ -84,8 +92,10 @@ async function start() {
         ],
       },
     })
+    console.log('✅ Swagger registered')
 
     // Registrar Swagger UI
+    console.log('🔧 Registering Swagger UI...')
     await app.register(fastifySwaggerUi, {
       routePrefix: '/docs',
       uiConfig: {
@@ -99,8 +109,10 @@ async function start() {
       },
       transformSpecificationClone: true,
     })
+    console.log('✅ Swagger UI registered')
 
     // Registrar Scalar API Reference
+    console.log('🔧 Registering Scalar API Reference...')
     const { default: scalarApiReference } = await import(
       '@scalar/fastify-api-reference'
     )
@@ -122,16 +134,22 @@ async function start() {
         },
       },
     })
+    console.log('✅ Scalar API Reference registered')
 
     // Registrar JWT
+    console.log('🔧 Registering JWT...')
     await app.register(fastifyJwt, {
       secret: env.JWT_SECRET,
     })
+    console.log('✅ JWT registered')
 
     // Adicionar método authenticate ao app
+    console.log('🔧 Adding authenticate method...')
     app.decorate('authenticate', authenticate)
+    console.log('✅ Authenticate method added')
 
     // Registrar rotas
+    console.log('🔧 Registering routes...')
 
     await app.register(authRoutes)
     await app.register(fipeRoutes)
@@ -139,7 +157,9 @@ async function start() {
     await app.register(usersRoutes)
     await app.register(vehiclesRoutes)
     await app.register(patrimonyRoutes)
+    console.log('✅ All routes registered')
 
+    console.log('🚀 Starting server...')
     await app.listen({ port: Number(PORT), host: '0.0.0.0' })
     console.log(`🚀 Server listening on port ${PORT}`)
   } catch (error) {

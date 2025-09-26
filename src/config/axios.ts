@@ -3,7 +3,10 @@ import { HttpsProxyAgent } from 'https-proxy-agent'
 import { env } from '../env'
 
 // Configurar axios globalmente
-const proxyUrl = env.HTTPS_PROXY || env.HTTP_PROXY
+// Usar proxy apenas em desenvolvimento
+const proxyUrl = env.NODE_ENV === 'development'
+  ? (env.HTTPS_PROXY || env.HTTP_PROXY)
+  : null
 
 if (proxyUrl) {
   const agent = new HttpsProxyAgent(proxyUrl)
@@ -13,6 +16,10 @@ if (proxyUrl) {
   axios.defaults.timeout = 60000
 
   console.log('🔧 Axios configurado globalmente com proxy:', proxyUrl)
+} else {
+  // Configuração padrão para produção
+  axios.defaults.timeout = 30000
+  console.log('🌐 Axios configurado para produção (sem proxy)')
 }
 
 // ✅ INTERCEPTORS PARA DEBUG (APENAS EM DEVELOPMENT)

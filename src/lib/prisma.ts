@@ -28,10 +28,4 @@ export const prisma = new PrismaClient({
     ? ['query', 'error']
     : ['error'],
   errorFormat: 'pretty',
-  __internal: {
-    engine: {
-      connectTimeout: 60000,
-      queryTimeout: 60000,
-    },
-  },
 })

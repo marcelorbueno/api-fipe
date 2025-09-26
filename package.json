@@ -9,6 +9,7 @@
     "dev": "ts-node-dev --respawn --transpile-only -r tsconfig-paths/register src/server.ts",
     "build": "tsc && npx prisma generate",
     "start": "node dist/server.js",
+    "start:debug": "node debug-railway.js && npm start",
     "start:railway": "npx prisma migrate deploy && npx prisma generate && npm run build && npm start",
     "prisma": "prisma",
     "seed": "ts-node -r tsconfig-paths/register src/scripts/seed.ts",

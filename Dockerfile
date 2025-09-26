@@ -1,27 +1,29 @@
-FROM node:22-alpine
+FROM node:18-alpine
 
-# Configurar proxy
-ENV http_proxy=http://10.3.2.55:3128/ \
-    https_proxy=http://10.3.2.55:3128/ \
-    HTTP_PROXY=http://10.3.2.55:3128/ \
-    HTTPS_PROXY=http://10.3.2.55:3128/ \
-    no_proxy=localhost,127.0.0.1,postgres,fipe.parallelum.com.br \
-    NO_PROXY=localhost,127.0.0.1,postgres,fipe.parallelum.com.br \
-    NODE_ENV=development
+# Install dependencies needed for Prisma
+RUN apk add --no-cache openssl
 
+# Create app directory
 WORKDIR /app
 
-# Instala as ferramentas de cliente PostgreSQL
-RUN apk add --no-cache postgresql-client
-
+# Copy package files
 COPY package*.json ./
-RUN npm install
+COPY prisma ./prisma/
 
-COPY . .
+# Install dependencies
+RUN npm ci
 
-# Gerar o Prisma Client
+# Generate Prisma client
 RUN npx prisma generate
 
+# Copy source code
+COPY . .
+
+# Build the application
+RUN npm run build
+
+# Expose port
 EXPOSE 3001
 
-CMD ["npm", "run", "dev"]
+# Start the application
+CMD ["npm", "start"]

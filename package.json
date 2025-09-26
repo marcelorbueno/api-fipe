@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only -r tsconfig-paths/register src/server.ts",
-    "build": "tsc && npx prisma generate",
+    "build": "tsc --project tsconfig.build.json && npx prisma generate",
     "start": "node dist/server.js",
     "start:debug": "node debug-railway.js && npm start",
     "start:railway": "echo '🚀 Railway: Starting deployment process...' && npx prisma migrate deploy && echo '✅ Railway: Migrations complete, starting server...' && npm start",

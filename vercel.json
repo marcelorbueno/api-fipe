@@ -1,7 +1,7 @@
 {
   "version": 2,
   "outputDirectory": "public",
-  "buildCommand": "prisma generate",
+  "buildCommand": "npx prisma generate --schema=./prisma/schema.prisma",
   "installCommand": "npm install",
   "rewrites": [
     {

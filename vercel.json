@@ -1,40 +1,13 @@
 {
   "version": 2,
-  "routes": [
+  "rewrites": [
     {
-      "src": "/health",
-      "dest": "/api/health"
+      "source": "/health",
+      "destination": "/api/health"
     },
     {
-      "src": "/ping",
-      "dest": "/api/ping"
-    },
-    {
-      "src": "/auth/(.*)",
-      "dest": "/api/auth"
-    },
-    {
-      "src": "/fipe/(.*)",
-      "dest": "/api/fipe"
-    },
-    {
-      "src": "/users/(.*)",
-      "dest": "/api/users"
-    },
-    {
-      "src": "/vehicles/(.*)",
-      "dest": "/api/vehicles"
-    },
-    {
-      "src": "/patrimony/(.*)",
-      "dest": "/api/patrimony"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/api/index"
+      "source": "/ping",
+      "destination": "/api/ping"
     }
-  ],
-  "env": {
-    "NODE_ENV": "production"
-  }
+  ]
 }

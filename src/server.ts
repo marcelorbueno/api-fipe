@@ -25,6 +25,12 @@ const PORT = process.env.PORT || env.PORT
 
 async function start() {
   try {
+    console.log('🔍 Validating environment variables...')
+    console.log('🔍 PORT:', PORT)
+    console.log('🔍 NODE_ENV:', process.env.NODE_ENV)
+    console.log('🔍 DATABASE_URL:', process.env.DATABASE_URL ? 'Present' : 'Missing')
+    console.log('🔍 JWT_SECRET:', process.env.JWT_SECRET ? 'Present' : 'Missing')
+
     // Setup global error handlers
     setupGlobalErrorHandlers()
 
@@ -36,7 +42,10 @@ async function start() {
       console.log('✅ Database connection successful')
     } catch (error) {
       console.error('❌ Database connection failed:', error)
-      // Continue anyway to see other potential issues
+      if (process.env.NODE_ENV === 'production') {
+        console.error('💥 Exiting due to database connection failure in production')
+        process.exit(1)
+      }
     }
 
     // Sistema de logging e error handling configurado
@@ -173,8 +182,9 @@ async function start() {
     console.log('✅ All routes registered')
 
     console.log('🚀 Starting server...')
-    await app.listen({ port: Number(PORT), host: '0.0.0.0' })
-    console.log(`🚀 Server listening on port ${PORT}`)
+    const host = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost'
+    await app.listen({ port: Number(PORT), host })
+    console.log(`🚀 Server listening on ${host}:${PORT}`)
   } catch (error) {
     console.error('❌ Erro ao iniciar servidor:', error)
     process.exit(1)

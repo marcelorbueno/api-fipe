@@ -3,14 +3,14 @@
   "version": "1.0.0",
   "main": "api/index.ts",
   "engines": {
-    "node": "18.x"
+    "node": ">=18.0.0"
   },
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only -r tsconfig-paths/register src/server.ts",
     "build": "tsc --project tsconfig.build.json && npx prisma generate",
     "start": "node dist/server.js",
     "start:debug": "node debug-railway.js && npm start",
-    "start:railway": "echo '🚀 Railway: Starting deployment process...' && npx prisma migrate deploy && echo '✅ Railway: Migrations complete, starting server...' && npm start",
+    "start:railway": "echo '🚀 Railway: Starting deployment process...' && npx prisma migrate deploy && echo '✅ Railway: Migrations complete, waiting 3s...' && sleep 3 && npm start",
     "prisma": "prisma",
     "seed": "ts-node -r tsconfig-paths/register src/scripts/seed.ts",
     "seed-full": "ts-node -r tsconfig-paths/register src/scripts/seed-full.ts",
@@ -64,9 +64,6 @@
     "pg-connection-string": "^2.9.1",
     "prisma": "^6.13.0",
     "zod": "3.25.32"
-  },
-  "engines": {
-    "node": ">=22.0.0"
   },
   "devDependencies": {
     "@rocketseat/eslint-config": "3.0.12",

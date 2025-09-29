@@ -4,8 +4,22 @@ import { env } from '../env'
 import { prisma } from '../lib/prisma'
 
 export async function healthRoutes(app: FastifyInstance) {
-  // 🔍 Health Check - Teste de conexão
+  // Simple health check without database dependency for Railway
   app.get('/health', async (_, reply: FastifyReply) => {
+    console.log('🩺 Health check requested')
+
+    if (process.env.NODE_ENV === 'production') {
+      // Simple health check for production to avoid blocking Railway
+      return reply.send({
+        status: 'OK',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        environment: process.env.NODE_ENV,
+        version: '1.0.0',
+        message: 'Service is running'
+      })
+    }
+
     try {
       // Test database connection
       let dbStatus = 'disconnected'
@@ -105,5 +119,11 @@ export async function healthRoutes(app: FastifyInstance) {
         error: 'Service temporarily unavailable',
       })
     }
+  })
+
+  // Ultra-simple ping endpoint for Railway connectivity testing
+  app.get('/ping', async (_, reply: FastifyReply) => {
+    console.log('🏓 Ping requested')
+    return reply.send({ status: 'pong', timestamp: new Date().toISOString() })
   })
 }

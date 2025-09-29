@@ -27,16 +27,24 @@ const server = http.createServer((req, res) => {
   }
 })
 
-const PORT = process.env.PORT || 3001
-const HOST = '0.0.0.0'
+// Railway requires specific port binding
+const PORT = parseInt(process.env.PORT) || 3001
 
-server.listen(PORT, HOST, () => {
-  console.log(`✅ Railway test server listening on ${HOST}:${PORT}`)
-  console.log(`🔍 Health endpoint: http://${HOST}:${PORT}/health`)
+console.log(`🔧 Attempting to bind to port ${PORT} (Railway style)`)
+
+server.listen(PORT, () => {
+  console.log(`✅ Railway test server listening on port ${PORT}`)
+  console.log(`🔍 Health endpoint: /health`)
+  console.log(`🔍 Ping endpoint: /ping`)
+
+  // Test server is responding internally
+  setTimeout(() => {
+    console.log(`🧪 Server startup complete - ready to accept connections`)
+  }, 1000)
 
   // Log server status every 30 seconds
   setInterval(() => {
-    console.log(`💓 Server alive - uptime: ${Math.floor(process.uptime())}s`)
+    console.log(`💓 Server alive - uptime: ${Math.floor(process.uptime())}s, memory: ${Math.round(process.memoryUsage().rss / 1024 / 1024)}MB`)
   }, 30000)
 })
 

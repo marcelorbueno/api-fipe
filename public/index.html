@@ -25,16 +25,31 @@
         <strong>GET</strong> <a href="/api/index">/api/index</a> - Informações gerais
     </div>
     <div class="endpoint">
-        <strong>GET</strong> <a href="/api/db-test">/api/db-test</a> - 🗄️ Teste de banco de dados
+        <strong>GET</strong> <a href="/api/db-test">/api/db-test</a> - 🗄️ Teste Prisma + PostgreSQL
+    </div>
+    <div class="endpoint">
+        <strong>GET</strong> <a href="/api/db-simple">/api/db-simple</a> - 🗄️ Teste PostgreSQL simples
+    </div>
+
+    <h2>🔐 Autenticação (JWT):</h2>
+    <div class="endpoint">
+        <strong>POST</strong> /api/auth/login - Login de usuário
+    </div>
+    <div class="endpoint">
+        <strong>GET</strong> /api/auth/me - Dados do usuário logado
+    </div>
+    <div class="endpoint">
+        <strong>POST</strong> /api/auth/refresh - Renovar token
     </div>
 
     <h2>Próximos Passos:</h2>
     <ul>
         <li>✅ Deploy básico funcionando</li>
         <li>✅ Configurar domínio personalizado</li>
-        <li>🔄 Integrar com banco de dados (Prisma + Neon)</li>
+        <li>✅ Integrar com banco de dados (Prisma + Neon)</li>
         <li>🔄 Adicionar autenticação JWT</li>
         <li>🔄 Adicionar endpoints FIPE</li>
+        <li>🔄 Adicionar CRUD de usuários e veículos</li>
     </ul>
 </body>
 </html>

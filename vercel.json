@@ -1,7 +1,7 @@
 {
   "version": 2,
   "outputDirectory": "public",
-  "buildCommand": null,
+  "buildCommand": "npx prisma generate --schema=./prisma/schema.prisma",
   "installCommand": "npm install",
   "rewrites": [
     {
@@ -19,6 +19,10 @@
     {
       "source": "/db-simple",
       "destination": "/api/db-simple"
+    },
+    {
+      "source": "/auth/(.*)",
+      "destination": "/api/auth/$1"
     }
   ]
 }

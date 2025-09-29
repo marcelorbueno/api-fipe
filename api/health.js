@@ -1,11 +1,9 @@
 export default function handler(req, res) {
   res.status(200).json({
     status: 'OK',
+    service: 'API BMC FIPE',
     timestamp: new Date().toISOString(),
-    environment: 'production',
-    platform: 'vercel',
-    version: '1.0.0',
     uptime: 'serverless',
-    message: 'API BMC FIPE is healthy'
+    version: '1.0.0-minimal'
   })
 }

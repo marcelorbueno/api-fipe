@@ -3,18 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>API BMC FIPE</title>
+    <title>API BMC FIPE - Minimal</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+        .status { color: green; font-weight: bold; }
+        .endpoint { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 5px; }
+    </style>
 </head>
 <body>
-    <h1>API BMC FIPE</h1>
-    <p>API para gerenciamento de veículos e patrimônio com integração à tabela FIPE.</p>
+    <h1>🚀 API BMC FIPE - Minimal Version</h1>
+    <p class="status">✅ Status: Funcionando no Vercel!</p>
 
     <h2>Endpoints Disponíveis:</h2>
-    <ul>
-        <li><a href="/health">/health</a> - Status da API</li>
-        <li><a href="/ping">/ping</a> - Teste de conectividade</li>
-    </ul>
+    <div class="endpoint">
+        <strong>GET</strong> <a href="/api/health">/api/health</a> - Status da API
+    </div>
+    <div class="endpoint">
+        <strong>GET</strong> <a href="/api/ping">/api/ping</a> - Teste de conectividade
+    </div>
+    <div class="endpoint">
+        <strong>GET</strong> <a href="/api/index">/api/index</a> - Informações gerais
+    </div>
 
-    <p><strong>Status:</strong> ✅ API funcionando no Vercel</p>
+    <h2>Próximos Passos:</h2>
+    <ul>
+        <li>✅ Deploy básico funcionando</li>
+        <li>🔄 Configurar domínio personalizado</li>
+        <li>🔄 Adicionar autenticação JWT</li>
+        <li>🔄 Integrar com banco de dados</li>
+        <li>🔄 Adicionar endpoints FIPE</li>
+    </ul>
 </body>
 </html>

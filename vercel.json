@@ -1,19 +1,7 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "api/**/*.ts",
-      "use": "@vercel/node"
+  "functions": {
+    "api/*.ts": {
+      "runtime": "@vercel/node@20.x"
     }
-  ],
-  "rewrites": [
-    {
-      "source": "/health",
-      "destination": "/api/health"
-    },
-    {
-      "source": "/ping",
-      "destination": "/api/ping"
-    }
-  ]
+  }
 }

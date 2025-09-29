@@ -1,0 +1,13 @@
+src/
+dist/
+prisma/
+tests/
+node_modules/
+*.log
+.env*
+railway-test.js
+test-server.js
+debug-railway.js
+railway.json
+docker-compose*.yml
+Dockerfile

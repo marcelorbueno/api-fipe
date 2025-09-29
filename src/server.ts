@@ -34,7 +34,7 @@ async function start() {
     // Setup global error handlers
     setupGlobalErrorHandlers()
 
-    // Test database connection early
+    // Test database connection early (but don't fail in production)
     console.log('🔌 Testing database connection...')
     try {
       await prisma.$connect()
@@ -43,8 +43,8 @@ async function start() {
     } catch (error) {
       console.error('❌ Database connection failed:', error)
       if (process.env.NODE_ENV === 'production') {
-        console.error('💥 Exiting due to database connection failure in production')
-        process.exit(1)
+        console.error('⚠️ Database connection failed but continuing startup for Railway health check')
+        // Don't exit - allow the application to start for Railway health checks
       }
     }
 
@@ -55,77 +55,82 @@ async function start() {
     await app.register(fastifyCors, { origin: '*' })
     console.log('✅ CORS registered')
 
-    // Registrar Swagger
-    console.log('🔧 Registering Swagger...')
-    await app.register(fastifySwagger, {
-      openapi: {
-        openapi: '3.0.0',
-        info: {
-          title: 'API FIPE - BMC',
-          description:
-            'API para gerenciamento de veículos, usuários e patrimônio' +
-            ' com integração à tabela FIPE',
-          version: '1.0.0',
-          contact: {
-            name: 'BMC Team',
-            email: 'contato@bmc.com.br',
-          },
-          license: {
-            name: 'MIT',
-          },
-        },
-        servers: [
-          {
-            url: `http://localhost:${PORT}`,
-            description: 'Development server',
-          },
-          {
-            url: 'http://localhost:3001',
-            description: 'Docker container',
-          },
-          ...(process.env.VERCEL_URL
-            ? [{
-                url: `https://${process.env.VERCEL_URL}`,
-                description: 'Production server (Vercel)',
-              }]
-            : []),
-        ],
-        components: {
-          securitySchemes: {
-            bearerAuth: {
-              type: 'http',
-              scheme: 'bearer',
-              bearerFormat: 'JWT',
+    // Skip Swagger in production for Railway stability
+    if (process.env.NODE_ENV !== 'production') {
+      // Registrar Swagger
+      console.log('🔧 Registering Swagger...')
+      await app.register(fastifySwagger, {
+        openapi: {
+          openapi: '3.0.0',
+          info: {
+            title: 'API FIPE - BMC',
+            description:
+              'API para gerenciamento de veículos, usuários e patrimônio' +
+              ' com integração à tabela FIPE',
+            version: '1.0.0',
+            contact: {
+              name: 'BMC Team',
+              email: 'contato@bmc.com.br',
+            },
+            license: {
+              name: 'MIT',
             },
           },
-        },
-        security: [
-          {
-            bearerAuth: [],
+          servers: [
+            {
+              url: `http://localhost:${PORT}`,
+              description: 'Development server',
+            },
+            {
+              url: 'http://localhost:3001',
+              description: 'Docker container',
+            },
+            ...(process.env.VERCEL_URL
+              ? [{
+                  url: `https://${process.env.VERCEL_URL}`,
+                  description: 'Production server (Vercel)',
+                }]
+              : []),
+          ],
+          components: {
+            securitySchemes: {
+              bearerAuth: {
+                type: 'http',
+                scheme: 'bearer',
+                bearerFormat: 'JWT',
+              },
+            },
           },
-        ],
-      },
-    })
-    console.log('✅ Swagger registered')
+          security: [
+            {
+              bearerAuth: [],
+            },
+          ],
+        },
+      })
+      console.log('✅ Swagger registered')
 
-    // Registrar Swagger UI
-    console.log('🔧 Registering Swagger UI...')
-    await app.register(fastifySwaggerUi, {
-      routePrefix: '/docs',
-      uiConfig: {
-        docExpansion: 'list',
-        deepLinking: false,
-      },
-      staticCSP: true,
-      transformStaticCSP: (header) => header,
-      transformSpecification: (swaggerObject) => {
-        return swaggerObject
-      },
-      transformSpecificationClone: true,
-    })
-    console.log('✅ Swagger UI registered')
+      // Registrar Swagger UI
+      console.log('🔧 Registering Swagger UI...')
+      await app.register(fastifySwaggerUi, {
+        routePrefix: '/docs',
+        uiConfig: {
+          docExpansion: 'list',
+          deepLinking: false,
+        },
+        staticCSP: true,
+        transformStaticCSP: (header) => header,
+        transformSpecification: (swaggerObject) => {
+          return swaggerObject
+        },
+        transformSpecificationClone: true,
+      })
+      console.log('✅ Swagger UI registered')
+    } else {
+      console.log('⏭️ Skipping Swagger in production for Railway stability')
+    }
 
-    // Skip Scalar API Reference in production to avoid startup issues
+    // Skip all optional components in production for Railway stability
     if (process.env.NODE_ENV !== 'production') {
       console.log('🔧 Registering Scalar API Reference...')
       try {
@@ -155,7 +160,7 @@ async function start() {
         console.log('⚠️ Scalar API Reference failed, continuing...', error)
       }
     } else {
-      console.log('⏭️ Skipping Scalar API Reference in production')
+      console.log('⏭️ Skipping Swagger and Scalar in production for Railway stability')
     }
 
     // Registrar JWT

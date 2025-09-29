@@ -23,6 +23,10 @@
     {
       "source": "/auth/(.*)",
       "destination": "/api/auth/$1"
+    },
+    {
+      "source": "/auth-test",
+      "destination": "/api/auth-test"
     }
   ]
 }

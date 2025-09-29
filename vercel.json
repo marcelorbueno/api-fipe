@@ -1,8 +1,8 @@
 {
   "version": 2,
   "outputDirectory": "public",
-  "buildCommand": null,
-  "installCommand": "echo 'No install needed for minimal version'",
+  "buildCommand": "prisma generate",
+  "installCommand": "npm install",
   "rewrites": [
     {
       "source": "/health",
@@ -11,6 +11,10 @@
     {
       "source": "/ping",
       "destination": "/api/ping"
+    },
+    {
+      "source": "/db-test",
+      "destination": "/api/db-test"
     }
   ]
 }

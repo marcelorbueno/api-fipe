@@ -36,19 +36,19 @@
     },
     {
       "source": "/auth/login",
-      "destination": "/api/auth/login"
+      "destination": "/api/auth-login"
     },
     {
       "source": "/auth/me",
-      "destination": "/api/auth/me"
+      "destination": "/api/auth-me"
     },
     {
       "source": "/auth/refresh",
-      "destination": "/api/auth/refresh"
+      "destination": "/api/auth-refresh"
     },
     {
       "source": "/auth/logout",
-      "destination": "/api/auth/logout"
+      "destination": "/api/auth-logout"
     }
   ]
 }

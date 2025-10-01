@@ -17,6 +17,10 @@
     {
       "source": "/db-tables",
       "destination": "/api/db-tables"
+    },
+    {
+      "source": "/prisma-test",
+      "destination": "/api/prisma-test"
     }
   ]
 }

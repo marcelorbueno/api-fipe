@@ -9,7 +9,11 @@
     "deploy": "vercel --prod"
   },
   "dependencies": {
+    "@prisma/client": "^6.13.0",
     "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "prisma": "^6.13.0"
   },
   "engines": {
     "node": ">=18.0.0"

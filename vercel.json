@@ -25,6 +25,10 @@
     {
       "source": "/auth/(.*)",
       "destination": "/api/auth"
+    },
+    {
+      "source": "/prisma-vercel-test",
+      "destination": "/api/prisma-vercel-test"
     }
   ]
 }

@@ -6,17 +6,17 @@
   "type": "module",
   "scripts": {
     "dev": "vercel dev",
-    "deploy": "vercel --prod"
+    "deploy": "vercel --prod",
+    "postinstall": "prisma generate",
+    "vercel-build": "prisma generate"
   },
   "dependencies": {
     "@prisma/client": "^6.13.0",
+    "prisma": "^6.13.0",
     "pg": "^8.11.3",
     "bcryptjs": "^2.4.3",
     "jsonwebtoken": "^9.0.2",
     "zod": "^3.25.32"
-  },
-  "devDependencies": {
-    "prisma": "^6.13.0"
   },
   "engines": {
     "node": ">=18.0.0"

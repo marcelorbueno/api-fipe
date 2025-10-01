@@ -1,7 +1,6 @@
 {
   "version": 2,
   "outputDirectory": "public",
-  "installCommand": "npm install",
   "rewrites": [
     {
       "source": "/health",
@@ -12,20 +11,8 @@
       "destination": "/api/ping"
     },
     {
-      "source": "/db-test",
-      "destination": "/api/db-test"
-    },
-    {
       "source": "/db-simple",
       "destination": "/api/db-simple"
-    },
-    {
-      "source": "/auth/(.*)",
-      "destination": "/api/auth/$1"
-    },
-    {
-      "source": "/auth-test",
-      "destination": "/api/auth-test"
     },
     {
       "source": "/db-tables",

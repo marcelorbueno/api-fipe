@@ -5,8 +5,8 @@
   "main": "api/index.js",
   "type": "module",
   "scripts": {
-    "dev": "vercel dev",
-    "deploy": "vercel --prod",
+    "dev": "netlify dev",
+    "build": "prisma generate",
     "postinstall": "prisma generate",
     "vercel-build": "prisma generate"
   },

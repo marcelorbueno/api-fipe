@@ -21,6 +21,10 @@
     {
       "source": "/prisma-test",
       "destination": "/api/prisma-test"
+    },
+    {
+      "source": "/auth-simple",
+      "destination": "/api/auth-simple"
     }
   ]
 }

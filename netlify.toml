@@ -35,3 +35,13 @@
   from = "/prisma-test"
   to = "/.netlify/functions/prisma-test"
   status = 200
+
+[[redirects]]
+  from = "/database/reset"
+  to = "/.netlify/functions/database-reset"
+  status = 200
+
+[[redirects]]
+  from = "/database/seed"
+  to = "/.netlify/functions/database-seed"
+  status = 200

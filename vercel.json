@@ -29,6 +29,10 @@
     {
       "source": "/check-user",
       "destination": "/api/check-user"
+    },
+    {
+      "source": "/create-test-user",
+      "destination": "/api/create-test-user"
     }
   ]
 }

@@ -30,3 +30,8 @@
   from = "/auth/*"
   to = "/.netlify/functions/auth"
   status = 200
+
+[[redirects]]
+  from = "/prisma-test"
+  to = "/.netlify/functions/prisma-test"
+  status = 200

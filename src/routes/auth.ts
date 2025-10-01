@@ -1,4 +1,4 @@
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
@@ -7,7 +7,7 @@ import { prisma } from '../lib/prisma'
 import { TokenBlacklistService } from '../services/token-blacklist-service'
 
 // Interface local que sobrescreve a tipagem padrão
-interface AuthenticatedRequest extends FastifyRequest {
+interface IAuthenticatedRequest extends FastifyRequest {
   user: {
     userId: string
     email: string
@@ -16,7 +16,7 @@ interface AuthenticatedRequest extends FastifyRequest {
 }
 
 // Interface para JWT decodificado
-interface DecodedJWT {
+interface IDecodedJWT {
   sub?: string
   email?: string
   profile?: 'ADMINISTRATOR' | 'PARTNER' | 'INVESTOR'
@@ -34,7 +34,7 @@ const refreshSchema = z.object({
   refreshToken: z.string(),
 })
 
-export async function authRoutes(app: FastifyInstance) {
+export async function authRoutes(app: FastifyInstance): Promise<void> {
   // POST /auth/login - Login do usuário
   app.post('/auth/login', {
     schema: {
@@ -44,8 +44,8 @@ export async function authRoutes(app: FastifyInstance) {
     },
   }, async (
     req: FastifyRequest<{ Body: z.infer<typeof loginSchema> }>,
-    res,
-  ) => {
+    res: FastifyReply,
+  ): Promise<void> => {
     try {
       const { email, password } = loginSchema.parse(req.body)
 
@@ -90,9 +90,12 @@ export async function authRoutes(app: FastifyInstance) {
           token: refreshToken,
           user_id: user.id,
           expires_at: new Date(
-            Date.now() + (
-              Number(process.env.JWT_REFRESH_TOKEN_EXPIRES_DAYS) || 7) *
-              24 * 60 * 60 * 1000,
+            Date.now() +
+              (Number(process.env.JWT_REFRESH_TOKEN_EXPIRES_DAYS) || 7) *
+                24 *
+                60 *
+                60 *
+                1000,
           ),
         },
       })
@@ -110,9 +113,7 @@ export async function authRoutes(app: FastifyInstance) {
     } catch (error) {
       return res.status(400).send({
         error: 'Erro no login',
-        details: error instanceof Error
-          ? error.message
-          : 'Erro desconhecido',
+        details: error instanceof Error ? error.message : 'Erro desconhecido',
       })
     }
   })
@@ -176,8 +177,8 @@ export async function authRoutes(app: FastifyInstance) {
     },
   }, async (
     req: FastifyRequest<{ Body: z.infer<typeof refreshSchema> }>,
-    res,
-  ) => {
+    res: FastifyReply,
+  ): Promise<void> => {
     try {
       const { refreshToken } = refreshSchema.parse(req.body)
 
@@ -189,8 +190,7 @@ export async function authRoutes(app: FastifyInstance) {
 
       if (!tokenData || tokenData.expires_at < new Date()) {
         return res.status(401).send({
-          error:
-          'Refresh token inválido ou expirado',
+          error: 'Refresh token inválido ou expirado',
         })
       }
 
@@ -220,9 +220,7 @@ export async function authRoutes(app: FastifyInstance) {
     } catch (error) {
       return res.status(400).send({
         error: 'Erro ao renovar token',
-        details: error instanceof Error
-          ? error.message
-          : 'Erro desconhecido',
+        details: error instanceof Error ? error.message : 'Erro desconhecido',
       })
     }
   })
@@ -273,10 +271,10 @@ export async function authRoutes(app: FastifyInstance) {
       },
     },
     preHandler: [app.authenticate],
-  }, async (req: FastifyRequest, res: FastifyReply) => {
+  }, async (req: FastifyRequest, res: FastifyReply): Promise<void> => {
     try {
       const { refreshToken } = refreshSchema.parse(req.body)
-      const authRequest = req as AuthenticatedRequest
+      const authRequest = req as IAuthenticatedRequest
 
       // Extrair access token do header
       const authHeader = req.headers.authorization
@@ -306,7 +304,7 @@ export async function authRoutes(app: FastifyInstance) {
       if (accessToken) {
         try {
           // Decodificar token para obter expiração
-          const decoded = jwt.decode(accessToken) as DecodedJWT
+          const decoded = jwt.decode(accessToken) as IDecodedJWT
           const expiresAt = decoded?.exp
             ? new Date(decoded.exp * 1000)
             : new Date(Date.now() + 24 * 60 * 60 * 1000) // Default: 24h
@@ -330,9 +328,7 @@ export async function authRoutes(app: FastifyInstance) {
     } catch (error) {
       return res.status(400).send({
         error: 'Erro no logout',
-        details: error instanceof Error
-          ? error.message
-          : 'Erro desconhecido',
+        details: error instanceof Error ? error.message : 'Erro desconhecido',
       })
     }
   })
@@ -394,8 +390,8 @@ export async function authRoutes(app: FastifyInstance) {
       },
     },
     preHandler: [app.authenticate],
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const authRequest = request as AuthenticatedRequest
+  }, async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    const authRequest = request as IAuthenticatedRequest
 
     if (!authRequest.user || !authRequest.user.email) {
       return reply.status(401).send({ error: 'Usuário não autenticado' })
@@ -425,8 +421,8 @@ export async function authRoutes(app: FastifyInstance) {
   // GET /auth/blacklist/stats - Estatísticas da blacklist (Admin only)
   app.get('/auth/blacklist/stats', {
     preHandler: [app.authenticate],
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const authRequest = request as AuthenticatedRequest
+  }, async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    const authRequest = request as IAuthenticatedRequest
 
     // Apenas administradores podem ver estatísticas
     if (authRequest.user?.profile !== 'ADMINISTRATOR') {
@@ -444,9 +440,7 @@ export async function authRoutes(app: FastifyInstance) {
     } catch (error) {
       return reply.status(500).send({
         error: 'Erro ao obter estatísticas da blacklist',
-        details: error instanceof Error
-          ? error.message
-          : 'Erro desconhecido',
+        details: error instanceof Error ? error.message : 'Erro desconhecido',
       })
     }
   })
@@ -454,8 +448,8 @@ export async function authRoutes(app: FastifyInstance) {
   // POST /auth/blacklist/cleanup - Limpeza manual da blacklist (Admin only)
   app.post('/auth/blacklist/cleanup', {
     preHandler: [app.authenticate],
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const authRequest = request as AuthenticatedRequest
+  }, async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    const authRequest = request as IAuthenticatedRequest
 
     // Apenas administradores podem fazer limpeza
     if (authRequest.user?.profile !== 'ADMINISTRATOR') {
@@ -473,9 +467,7 @@ export async function authRoutes(app: FastifyInstance) {
     } catch (error) {
       return reply.status(500).send({
         error: 'Erro na limpeza da blacklist',
-        details: error instanceof Error
-          ? error.message
-          : 'Erro desconhecido',
+        details: error instanceof Error ? error.message : 'Erro desconhecido',
       })
     }
   })

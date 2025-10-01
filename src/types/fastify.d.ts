@@ -1,4 +1,5 @@
-import { FastifyReply } from 'fastify'
+import 'fastify'
+import '@fastify/jwt'
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -14,5 +15,16 @@ declare module 'fastify' {
       request: FastifyRequest,
       reply: FastifyReply
     ) => Promise<void>
+    jwt: {
+      sign: (payload: object, options?: { expiresIn?: string }) => string
+      verify: (token: string) => object
+    }
+  }
+
+  interface FastifySchema {
+    tags?: string[]
+    summary?: string
+    description?: string
+    security?: Array<Record<string, string[]>>
   }
 }

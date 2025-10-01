@@ -13,7 +13,9 @@ const config: Config = {
 
   // Transformações
   transform: {
-    '^.+\\.ts$': 'ts-jest',
+    '^.+\\.ts$': ['ts-jest', {
+      useESM: false,
+    }],
   },
 
   // Setup global
@@ -65,13 +67,6 @@ const config: Config = {
     'node_modules/(?!(module-that-needs-transformation)/)',
   ],
 
-  // Configurações específicas para ts-jest
-  globals: {
-    'ts-jest': {
-      useESM: false,
-      isolatedModules: true, // Melhora performance
-    },
-  },
 
   // Reporters - Manter seus reporters personalizados
   reporters: [

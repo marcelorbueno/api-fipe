@@ -7,7 +7,7 @@ export async function fipeRoutes(app: FastifyInstance) {
   // 🚗 Rota para listar tipos de veículos disponíveis
   app.get('/fipe/vehicle-types', {
     preHandler: [app.authenticate],
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (_: FastifyRequest, reply: FastifyReply) => {
     try {
       console.log('🚗 Retornando tipos de veículos disponíveis...')
 
@@ -137,7 +137,7 @@ export async function fipeRoutes(app: FastifyInstance) {
   // 📅 Rota para listar tabelas de referência (meses/anos)
   app.get('/fipe/references', {
     preHandler: [app.authenticate],
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  }, async (_: FastifyRequest, reply: FastifyReply) => {
     try {
       console.log('📅 Buscando tabelas de referência disponíveis...')
 

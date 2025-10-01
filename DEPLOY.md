@@ -1,8 +1,8 @@
-# Guia de Deploy na Vercel
+# Guia de Deploy na Netlify
 
 ## Pré-requisitos
 
-1. **Conta na Vercel**: Crie uma conta em [vercel.com](https://vercel.com)
+1. **Conta na Netlify**: Crie uma conta em [netlify.com](https://netlify.com)
 2. **Banco de dados PostgreSQL em produção**: Recomendamos:
    - [Neon](https://neon.tech) (gratuito para desenvolvimento)
    - [Supabase](https://supabase.com) (gratuito para desenvolvimento)
@@ -22,33 +22,37 @@
 3. Vá em Settings > Database
 4. Copie a connection string
 
-## Passo 2: Deploy na Vercel
+## Passo 2: Deploy na Netlify
 
 ### Via Interface Web (Recomendado)
-1. Acesse [vercel.com](https://vercel.com)
-2. Clique em "New Project"
-3. Importe seu repositório do GitHub
+1. Acesse [netlify.com](https://netlify.com)
+2. Clique em "Add new site" > "Import an existing project"
+3. Conecte seu repositório do GitHub
 4. Configure as variáveis de ambiente (veja seção abaixo)
-5. Clique em "Deploy"
+5. Build settings já configurados no `netlify.toml`
+6. Clique em "Deploy site"
 
 ### Via CLI
 ```bash
-# Instalar Vercel CLI
-npm i -g vercel
+# Instalar Netlify CLI
+npm i -g netlify-cli
 
-# Login na Vercel
-vercel login
+# Login na Netlify
+netlify login
+
+# Inicializar projeto
+netlify init
 
 # Deploy do projeto
-vercel
+netlify deploy
 
 # Deploy em produção
-vercel --prod
+netlify deploy --prod
 ```
 
 ## Passo 3: Configurar Variáveis de Ambiente
 
-Na dashboard da Vercel, vá em Settings > Environment Variables e configure:
+Na dashboard da Netlify, vá em Site Settings > Environment Variables e configure:
 
 ### Variáveis Obrigatórias
 ```
@@ -75,58 +79,63 @@ AXIOM_DATASET=your-dataset-name
 Após o primeiro deploy, execute as migrações do Prisma:
 
 ```bash
-# Via Vercel CLI
-vercel env pull .env.local
+# Via Netlify CLI
+netlify env:import .env
 npx prisma migrate deploy
 
-# Ou via função serverless (criar script)
+# Ou via função serverless disponível em /database/reset
 ```
 
 ## Passo 5: Popular Banco (Seed)
 
-Para popular o banco com dados iniciais:
+Para popular o banco com dados iniciais, use a função serverless:
 
 ```bash
-# Baixar env da Vercel
-vercel env pull .env.local
+# Acessar endpoint de seed (após deploy)
+curl https://seu-site.netlify.app/database/seed
 
-# Executar seed
+# Ou localmente
 npm run seed
 ```
 
 ## Estrutura de URLs em Produção
 
 Após o deploy, sua API estará disponível em:
-- **API Base**: `https://seu-projeto.vercel.app`
-- **Documentação Swagger**: `https://seu-projeto.vercel.app/docs`
-- **Documentação Scalar**: `https://seu-projeto.vercel.app/reference`
-- **Health Check**: `https://seu-projeto.vercel.app/health`
+- **API Base**: `https://seu-site.netlify.app`
+- **Health Check**: `https://seu-site.netlify.app/health`
+- **Ping**: `https://seu-site.netlify.app/ping`
+- **Auth**: `https://seu-site.netlify.app/auth/*`
+- **Database Reset**: `https://seu-site.netlify.app/database/reset`
+- **Database Seed**: `https://seu-site.netlify.app/database/seed`
 
-## Endpoints Principais
+## Endpoints Principais (Netlify Functions)
 
 - `POST /auth/login` - Login de usuário
 - `POST /auth/refresh` - Renovar token
-- `GET /fipe/brands` - Listar marcas
-- `GET /vehicles` - Listar veículos
-- `GET /patrimony/user/{id}` - Patrimônio do usuário
-- `GET /users` - Listar usuários
+- `POST /auth/logout` - Logout de usuário
+- `GET /auth/me` - Dados do usuário logado
+- `GET /health` - Health check do serviço
+- `GET /ping` - Teste de conectividade
+- `GET /database/reset` - Resetar banco de dados (use com cuidado!)
+- `GET /database/seed` - Popular banco com dados iniciais
 
 ## Logs e Monitoramento
 
-### Logs da Vercel
-- Acesse Functions > View Function Logs na dashboard
-- Logs em tempo real durante desenvolvimento
+### Logs da Netlify
+- Acesse Functions na dashboard para ver logs
+- Logs em tempo real durante desenvolvimento com `netlify dev`
+- Logs de produção disponíveis na aba Functions
 
 ### Observabilidade (Opcional)
-- Configure Axiom ou outro provider de observabilidade
-- Traces automáticos com OpenTelemetry
+- Configure logging provider de sua preferência
+- Netlify fornece logs básicos gratuitamente
 
 ## Domínio Personalizado (Opcional)
 
-1. Na dashboard da Vercel, vá em Settings > Domains
-2. Adicione seu domínio personalizado
-3. Configure DNS conforme instruções da Vercel
-4. SSL será configurado automaticamente
+1. Na dashboard da Netlify, vá em Domain Settings
+2. Clique em "Add custom domain"
+3. Configure DNS conforme instruções da Netlify
+4. SSL será configurado automaticamente via Let's Encrypt
 
 ## Troubleshooting
 
@@ -140,8 +149,8 @@ Após o deploy, sua API estará disponível em:
 - Confirme se não há espaços extras na variável
 
 ### Timeout em Funções
-- Ajuste `maxDuration` no `vercel.json` (máximo 30s no plano gratuito)
-- Otimize consultas ao banco de dados
+- Netlify Functions têm timeout de 10s no plano gratuito (26s no Pro)
+- Otimize consultas ao banco de dados para evitar timeouts
 
 ### API FIPE Lenta
 - Sistema de cache já implementado
@@ -157,10 +166,12 @@ Após o deploy, sua API estará disponível em:
 
 ## Custos Estimados
 
-### Vercel (Hobby - Gratuito)
-- 100GB bandwidth
+### Netlify (Starter - Gratuito)
+- 100GB bandwidth/mês
+- 125k Function requests/mês
 - Serverless Functions
 - Domínio personalizado
+- SSL gratuito
 
 ### Neon (Free Tier)
 - 1 projeto
@@ -168,3 +179,17 @@ Após o deploy, sua API estará disponível em:
 - Suficiente para MVP
 
 **Total estimado para MVP**: R$ 0,00/mês
+
+## Desenvolvimento Local
+
+Para testar localmente com Netlify Functions:
+
+```bash
+# Instalar Netlify CLI
+npm install -g netlify-cli
+
+# Executar em modo dev
+netlify dev
+
+# A API estará disponível em http://localhost:8888
+```

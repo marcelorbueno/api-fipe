@@ -486,7 +486,7 @@ export async function vehiclesRoutes(app: FastifyInstance) {
           )
 
           console.log(
-          `Veículo da empresa: criadas ${partners.length} participações ` +
+            `Veículo da empresa: criadas ${partners.length} participações ` +
           `de ${ownershipPercentage.toFixed(2)}% cada`,
           )
         }

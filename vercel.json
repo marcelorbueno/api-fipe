@@ -25,6 +25,10 @@
     {
       "source": "/auth-simple",
       "destination": "/api/auth-simple"
+    },
+    {
+      "source": "/check-user",
+      "destination": "/api/check-user"
     }
   ]
 }

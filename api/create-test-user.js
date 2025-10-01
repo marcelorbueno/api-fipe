@@ -29,10 +29,19 @@ export default async function handler(req, res) {
 
     // Create test user
     const result = await client.query(`
-      INSERT INTO users (id, name, email, password, profile, is_active)
-      VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)
+      INSERT INTO users (id, name, num_cpf, email, password, birthday, phone_number, profile, is_active)
+      VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING id, name, email, profile
-    `, ['Test User', 'test@example.com', hashedPassword, 'INVESTOR', true])
+    `, [
+      'Test User',
+      '12345678901', // CPF fictício
+      'test@example.com',
+      hashedPassword,
+      '1990-01-01', // Birthday
+      '11999999999', // Phone
+      'INVESTOR',
+      true
+    ])
 
     await client.end()
 

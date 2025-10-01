@@ -11,43 +11,34 @@
     </style>
 </head>
 <body>
-    <h1>🚀 API BMC FIPE - Minimal Version</h1>
-    <p class="status">✅ Status: Funcionando no Vercel!</p>
+    <h1>🚀 API BMC FIPE - Netlify Functions</h1>
+    <p class="status">✅ Status: Funcionando no Netlify com Prisma!</p>
 
     <h2>Endpoints Disponíveis:</h2>
     <div class="endpoint">
-        <strong>GET</strong> <a href="/api/health">/api/health</a> - Status da API
+        <strong>GET</strong> <a href="/health">/health</a> - Status da API
     </div>
     <div class="endpoint">
-        <strong>GET</strong> <a href="/api/ping">/api/ping</a> - Teste de conectividade
+        <strong>GET</strong> <a href="/ping">/ping</a> - Teste de conectividade
     </div>
     <div class="endpoint">
-        <strong>GET</strong> <a href="/api/index">/api/index</a> - Informações gerais
-    </div>
-    <div class="endpoint">
-        <strong>GET</strong> <a href="/api/db-test">/api/db-test</a> - 🗄️ Teste Prisma + PostgreSQL
-    </div>
-    <div class="endpoint">
-        <strong>GET</strong> <a href="/api/db-simple">/api/db-simple</a> - 🗄️ Teste PostgreSQL simples
+        <strong>GET</strong> <a href="/prisma-test">/prisma-test</a> - 🗄️ Teste Prisma + PostgreSQL
     </div>
 
-    <h2>🔐 Autenticação (JWT):</h2>
+    <h2>🔐 Autenticação (JWT com Prisma):</h2>
     <div class="endpoint">
-        <strong>POST</strong> /api/auth/login - Login de usuário
+        <strong>POST</strong> /auth/login - Login de usuário
     </div>
     <div class="endpoint">
-        <strong>GET</strong> /api/auth/me - Dados do usuário logado
-    </div>
-    <div class="endpoint">
-        <strong>POST</strong> /api/auth/refresh - Renovar token
+        <strong>GET</strong> /auth/me - Dados do usuário logado (requer token)
     </div>
 
-    <h2>Próximos Passos:</h2>
+    <h2>Status do Sistema:</h2>
     <ul>
-        <li>✅ Deploy básico funcionando</li>
-        <li>✅ Configurar domínio personalizado</li>
-        <li>✅ Integrar com banco de dados (Prisma + Neon)</li>
-        <li>🔄 Adicionar autenticação JWT</li>
+        <li>✅ Deploy no Netlify funcionando</li>
+        <li>✅ Domínio personalizado configurado</li>
+        <li>✅ Prisma + PostgreSQL (Neon) integrado</li>
+        <li>✅ Autenticação JWT com Prisma</li>
         <li>🔄 Adicionar endpoints FIPE</li>
         <li>🔄 Adicionar CRUD de usuários e veículos</li>
     </ul>

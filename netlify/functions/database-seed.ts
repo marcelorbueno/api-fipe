@@ -1,4 +1,5 @@
-import { PrismaClient } from '@prisma/client'
+import type { Handler, HandlerEvent } from '@netlify/functions'
+import { PrismaClient, VehicleColor } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient({
@@ -18,8 +19,21 @@ const mockFipeData = {
   reference_month: 'N/A',
 }
 
+interface VehicleData {
+  license_plate: string
+  renavam: string
+  fipe_brand_code: number
+  fipe_model_code: number
+  year_id: string
+  vehicle_type: 'cars' | 'motorcycles'
+  color: VehicleColor
+  is_company_vehicle: boolean
+  purchase_date: Date | null
+  purchase_value: number
+}
+
 // Dados base dos veículos (mesmos do seed-full.ts)
-const vehicleBaseData = [
+const vehicleBaseData: VehicleData[] = [
   // Veículos da empresa BMC Car (22 veículos)
   {
     license_plate: 'LTR6184',
@@ -28,10 +42,10 @@ const vehicleBaseData = [
     fipe_model_code: 7541,
     year_id: '2017-5',
     vehicle_type: 'cars',
-    color: 'BRANCA',
+    color: VehicleColor.BRANCA,
     is_company_vehicle: true,
     purchase_date: new Date('2024-11-12'),
-    purchase_value: 38000.00,
+    purchase_value: 38000.0,
   },
   {
     license_plate: 'KRQ8F85',
@@ -40,10 +54,10 @@ const vehicleBaseData = [
     fipe_model_code: 6598,
     year_id: '2017-5',
     vehicle_type: 'cars',
-    color: 'PRATA',
+    color: VehicleColor.PRATA,
     is_company_vehicle: true,
     purchase_date: null,
-    purchase_value: 40000.00,
+    purchase_value: 40000.0,
   },
   {
     license_plate: 'PYP3824',
@@ -52,10 +66,10 @@ const vehicleBaseData = [
     fipe_model_code: 7811,
     year_id: '2017-5',
     vehicle_type: 'cars',
-    color: 'CINZA',
+    color: VehicleColor.CINZA,
     is_company_vehicle: true,
     purchase_date: null,
-    purchase_value: 39000.00,
+    purchase_value: 39000.0,
   },
   {
     license_plate: 'KXN9438',
@@ -64,10 +78,10 @@ const vehicleBaseData = [
     fipe_model_code: 6251,
     year_id: '2018-5',
     vehicle_type: 'cars',
-    color: 'BRANCA',
+    color: VehicleColor.BRANCA,
     is_company_vehicle: true,
     purchase_date: null,
-    purchase_value: 55000.00,
+    purchase_value: 55000.0,
   },
   {
     license_plate: 'LTK7642',
@@ -76,10 +90,10 @@ const vehicleBaseData = [
     fipe_model_code: 7891,
     year_id: '2018-5',
     vehicle_type: 'cars',
-    color: 'BRANCA',
+    color: VehicleColor.BRANCA,
     is_company_vehicle: true,
     purchase_date: null,
-    purchase_value: 67000.00,
+    purchase_value: 67000.0,
   },
   // Adicionando mais alguns veículos da empresa
   {
@@ -89,10 +103,10 @@ const vehicleBaseData = [
     fipe_model_code: 7844,
     year_id: '2019-5',
     vehicle_type: 'cars',
-    color: 'PRATA',
+    color: VehicleColor.PRATA,
     is_company_vehicle: true,
     purchase_date: null,
-    purchase_value: 50311.00,
+    purchase_value: 50311.0,
   },
   {
     license_plate: 'LNH6C70',
@@ -101,10 +115,10 @@ const vehicleBaseData = [
     fipe_model_code: 6247,
     year_id: '2019-5',
     vehicle_type: 'cars',
-    color: 'PRATA',
+    color: VehicleColor.PRATA,
     is_company_vehicle: true,
     purchase_date: new Date('2025-02-24'),
-    purchase_value: 60000.00,
+    purchase_value: 60000.0,
   },
   // Veículos individuais
   {
@@ -114,10 +128,10 @@ const vehicleBaseData = [
     fipe_model_code: 7540,
     year_id: '2020-5',
     vehicle_type: 'cars',
-    color: 'PRATA',
+    color: VehicleColor.PRATA,
     is_company_vehicle: false,
     purchase_date: new Date('2024-12-12'),
-    purchase_value: 42500.00,
+    purchase_value: 42500.0,
   },
   {
     license_plate: 'RVO7F62',
@@ -126,10 +140,10 @@ const vehicleBaseData = [
     fipe_model_code: 7540,
     year_id: '2023-5',
     vehicle_type: 'cars',
-    color: 'BRANCA',
+    color: VehicleColor.BRANCA,
     is_company_vehicle: false,
     purchase_date: new Date('2025-03-17'),
-    purchase_value: 41950.00,
+    purchase_value: 41950.0,
   },
   {
     license_plate: 'SRO9C79',
@@ -138,19 +152,19 @@ const vehicleBaseData = [
     fipe_model_code: 7388,
     year_id: '2024-1',
     vehicle_type: 'motorcycles',
-    color: 'AZUL',
+    color: VehicleColor.AZUL,
     is_company_vehicle: false,
     purchase_date: null,
-    purchase_value: 16090.00,
+    purchase_value: 16090.0,
   },
 ]
 
-export const handler = async (event, context) => {
+export const handler: Handler = async (event: HandlerEvent) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
   }
 
   if (event.httpMethod === 'OPTIONS') {
@@ -161,7 +175,7 @@ export const handler = async (event, context) => {
     return {
       statusCode: 405,
       headers,
-      body: JSON.stringify({ error: 'Method Not Allowed. Use POST.' })
+      body: JSON.stringify({ error: 'Method Not Allowed. Use POST.' }),
     }
   }
 
@@ -171,7 +185,7 @@ export const handler = async (event, context) => {
     // 1. Criar usuário administrador
     console.log('👤 Creating admin user...')
     const adminPassword = await bcrypt.hash('bmc040526', 10)
-    const adminUser = await prisma.user.create({
+    await prisma.user.create({
       data: {
         name: 'Admin BMC Car',
         num_cpf: '11111111111',
@@ -284,7 +298,9 @@ export const handler = async (event, context) => {
     for (let i = 0; i < vehicleBaseData.length; i++) {
       const vehicleData = vehicleBaseData[i]
 
-      console.log(`Creating vehicle ${i + 1}/${vehicleBaseData.length}: ${vehicleData.license_plate}`)
+      console.log(
+        `Creating vehicle ${i + 1}/${vehicleBaseData.length}: ${vehicleData.license_plate}`,
+      )
 
       // Criar o veículo
       const vehicle = await prisma.vehicle.create({
@@ -294,7 +310,9 @@ export const handler = async (event, context) => {
           model_name: mockFipeData.model_name,
           fuel_acronym: mockFipeData.fuel_acronym,
           display_fuel: mockFipeData.display_fuel,
-          display_year: vehicleData.year_id ? parseInt(vehicleData.year_id.split('-')[0]) : null,
+          display_year: vehicleData.year_id
+            ? parseInt(vehicleData.year_id.split('-')[0])
+            : null,
           observations: null,
         },
       })
@@ -317,7 +335,7 @@ export const handler = async (event, context) => {
         }
       } else {
         // Veículo individual - atribuir ao Igor (investidor principal)
-        const igor = investors.find(p => p.name === 'Igor Olivieri Carneiro')
+        const igor = investors.find((p) => p.name === 'Igor Olivieri Carneiro')
         if (igor) {
           await prisma.vehicleOwnership.create({
             data: {
@@ -348,25 +366,33 @@ export const handler = async (event, context) => {
             total: totalUsers,
             admin: 1,
             partners: partners.length,
-            investors: investors.length
+            investors: investors.length,
           },
           vehicles: {
             total: vehicles.length,
-            company_vehicles: vehicles.filter(v => v.is_company_vehicle).length,
-            individual_vehicles: vehicles.filter(v => !v.is_company_vehicle).length
-          }
+            company_vehicles: vehicles.filter((v) => v.is_company_vehicle)
+              .length,
+            individual_vehicles: vehicles.filter((v) => !v.is_company_vehicle)
+              .length,
+          },
         },
         credentials: {
           admin: 'contato@bmccar.com (password: bmc040526)',
           partners: 'partner emails (password: 123456)',
-          investors: 'investor emails (password: 123456)'
-        }
-      })
+          investors: 'investor emails (password: 123456)',
+        },
+      }),
     }
-
   } catch (error) {
     console.error('❌ Database seed error:', error)
     await prisma.$disconnect()
+
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error'
+    const errorCode =
+      error && typeof error === 'object' && 'code' in error
+        ? (error.code as string)
+        : 'UNKNOWN'
 
     return {
       statusCode: 500,
@@ -376,10 +402,10 @@ export const handler = async (event, context) => {
         message: 'Database seed failed',
         timestamp: new Date().toISOString(),
         error: {
-          message: error.message,
-          code: error.code || 'UNKNOWN'
-        }
-      })
+          message: errorMessage,
+          code: errorCode,
+        },
+      }),
     }
   }
 }

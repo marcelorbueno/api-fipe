@@ -3,52 +3,187 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>API BMC FIPE - Minimal</title>
+    <title>API BMC FIPE</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
-        .status { color: green; font-weight: bold; }
-        .endpoint { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            color: #22c55e;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+        .endpoint {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #3b82f6;
+        }
+        .method {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-weight: bold;
+            font-size: 0.85em;
+            margin-right: 10px;
+        }
+        .get { background: #10b981; color: white; }
+        .post { background: #3b82f6; color: white; }
+        h1 { color: #1f2937; }
+        h2 {
+            color: #374151;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 10px;
+            margin-top: 30px;
+        }
+        a {
+            color: #3b82f6;
+            text-decoration: none;
+        }
+        a:hover { text-decoration: underline; }
+        ul { line-height: 1.8; }
+        .doc-link {
+            display: inline-block;
+            background: #8b5cf6;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 6px;
+            text-decoration: none;
+            margin: 10px 10px 10px 0;
+            font-weight: bold;
+        }
+        .doc-link:hover {
+            background: #7c3aed;
+            text-decoration: none;
+        }
     </style>
 </head>
 <body>
-    <h1>🚀 API BMC FIPE - Netlify Functions</h1>
-    <p class="status">✅ Status: Funcionando no Netlify com Prisma!</p>
+    <div class="container">
+        <h1>🚗 API BMC FIPE</h1>
+        <p class="status">✅ Sistema de Gestão de Patrimônio Veicular em Produção</p>
 
-    <h2>Endpoints Disponíveis:</h2>
-    <div class="endpoint">
-        <strong>GET</strong> <a href="/health">/health</a> - Status da API
-    </div>
-    <div class="endpoint">
-        <strong>GET</strong> <a href="/ping">/ping</a> - Teste de conectividade
-    </div>
-    <div class="endpoint">
-        <strong>GET</strong> <a href="/prisma-test">/prisma-test</a> - 🗄️ Teste Prisma + PostgreSQL
-    </div>
+        <h2>📚 Documentação Interativa</h2>
+        <a href="/docs" class="doc-link">📖 Swagger UI</a>
 
-    <h2>🔐 Autenticação (JWT com Prisma):</h2>
-    <div class="endpoint">
-        <strong>POST</strong> /auth/login - Login de usuário
-    </div>
-    <div class="endpoint">
-        <strong>GET</strong> /auth/me - Dados do usuário logado (requer token)
-    </div>
+        <h2>🔧 Endpoints de Monitoramento</h2>
+        <div class="endpoint">
+            <span class="method get">GET</span>
+            <a href="/health">/health</a> - Status da API e conexão com banco de dados
+        </div>
 
-    <h2>🗄️ Gerenciamento de Banco:</h2>
-    <div class="endpoint">
-        <strong>POST</strong> /database/reset - Limpar todas as tabelas
-    </div>
-    <div class="endpoint">
-        <strong>POST</strong> /database/seed - Popular com dados completos da BMC Car
-    </div>
+        <h2>🗄️ Gerenciamento de Dados</h2>
+        <div class="endpoint">
+            <span class="method post">POST</span>
+            /database/seed - Popular banco com dados iniciais da BMC Car
+        </div>
 
-    <h2>Status do Sistema:</h2>
-    <ul>
-        <li>✅ Deploy no Netlify funcionando</li>
-        <li>✅ Domínio personalizado configurado</li>
-        <li>✅ Prisma + PostgreSQL (Neon) integrado</li>
-        <li>✅ Autenticação JWT com Prisma</li>
-        <li>🔄 Adicionar endpoints FIPE</li>
-        <li>🔄 Adicionar CRUD de usuários e veículos</li>
-    </ul>
+        <h2>🔐 Autenticação</h2>
+        <div class="endpoint">
+            <span class="method post">POST</span>
+            /auth/login - Login de usuário
+        </div>
+        <div class="endpoint">
+            <span class="method post">POST</span>
+            /auth/refresh - Renovar token de acesso
+        </div>
+        <div class="endpoint">
+            <span class="method post">POST</span>
+            /auth/logout - Logout com blacklist de token
+        </div>
+        <div class="endpoint">
+            <span class="method get">GET</span>
+            /auth/me - Dados do usuário logado (requer token)
+        </div>
+
+        <h2>👥 Gestão de Usuários</h2>
+        <div class="endpoint">
+            <span class="method post">POST</span>
+            /users - Cadastrar novo usuário
+        </div>
+        <div class="endpoint">
+            <span class="method get">GET</span>
+            /users - Listar usuários (Admin)
+        </div>
+        <div class="endpoint">
+            <span class="method get">GET</span>
+            /users/:id - Buscar usuário específico (Admin)
+        </div>
+
+        <h2>🚙 Gestão de Veículos</h2>
+        <div class="endpoint">
+            <span class="method post">POST</span>
+            /vehicles - Cadastrar veículo com dados FIPE
+        </div>
+        <div class="endpoint">
+            <span class="method get">GET</span>
+            /vehicles - Listar todos os veículos
+        </div>
+        <div class="endpoint">
+            <span class="method get">GET</span>
+            /vehicles/:id - Buscar veículo específico
+        </div>
+
+        <h2>💰 Patrimônio</h2>
+        <div class="endpoint">
+            <span class="method get">GET</span>
+            /patrimony/user/:userId - Patrimônio de usuário específico
+        </div>
+        <div class="endpoint">
+            <span class="method get">GET</span>
+            /patrimony/partners - Patrimônio dos sócios
+        </div>
+        <div class="endpoint">
+            <span class="method get">GET</span>
+            /patrimony/company - Patrimônio da empresa (Sócios)
+        </div>
+        <div class="endpoint">
+            <span class="method get">GET</span>
+            /patrimony/report - Relatório completo (Admin)
+        </div>
+
+        <h2>🏷️ Consultas FIPE</h2>
+        <div class="endpoint">
+            <span class="method get">GET</span>
+            /fipe/vehicle-types - Tipos de veículos disponíveis
+        </div>
+        <div class="endpoint">
+            <span class="method get">GET</span>
+            /fipe/:vehicleType/brands - Listar marcas
+        </div>
+        <div class="endpoint">
+            <span class="method get">GET</span>
+            /fipe/:vehicleType/brands/:brandId/models - Listar modelos
+        </div>
+
+        <h2>⚙️ Status do Sistema</h2>
+        <ul>
+            <li>✅ Deploy no Netlify ativo</li>
+            <li>✅ Domínio personalizado: <strong>api.bmccar.com.br</strong></li>
+            <li>✅ Prisma + PostgreSQL (Neon) integrado</li>
+            <li>✅ Autenticação JWT com refresh token</li>
+            <li>✅ Sistema de blacklist para logout seguro</li>
+            <li>✅ Integração com API FIPE para precificação</li>
+            <li>✅ Cache inteligente de valores FIPE</li>
+            <li>✅ Cálculo automático de patrimônio</li>
+            <li>✅ Documentação Swagger/OpenAPI completa</li>
+        </ul>
+
+        <p style="margin-top: 40px; color: #6b7280; font-size: 0.9em;">
+            🔗 <a href="https://api.bmccar.com.br">api.bmccar.com.br</a> |
+            📧 <a href="mailto:contato@bmccar.com">contato@bmccar.com</a>
+        </p>
+    </div>
 </body>
 </html>

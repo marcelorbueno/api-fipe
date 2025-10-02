@@ -1,14 +1,15 @@
+import type { Handler } from '@netlify/functions'
 import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
-export const handler = async (event, context) => {
+export const handler: Handler = async () => {
   console.log('🩺 Health check requested')
 
   try {
     // Test database connection
     let dbStatus = 'disconnected'
-    let dbError = null
+    let dbError: string | null = null
 
     try {
       await prisma.$queryRaw`SELECT 1`

@@ -55,80 +55,73 @@ async function start() {
     await app.register(fastifyCors, { origin: '*' })
     console.log('✅ CORS registered')
 
-    // Skip Swagger in production for Railway stability
-    if (process.env.NODE_ENV !== 'production') {
-      // Registrar Swagger
-      console.log('🔧 Registering Swagger...')
-      await app.register(fastifySwagger, {
-        openapi: {
-          openapi: '3.0.0',
-          info: {
-            title: 'API FIPE - BMC',
-            description:
-              'API para gerenciamento de veículos, usuários e patrimônio' +
-              ' com integração à tabela FIPE',
-            version: '1.0.0',
-            contact: {
-              name: 'BMC Team',
-              email: 'contato@bmc.com.br',
-            },
-            license: {
-              name: 'MIT',
-            },
+    // Registrar Swagger
+    console.log('🔧 Registering Swagger...')
+    await app.register(fastifySwagger, {
+      openapi: {
+        openapi: '3.0.0',
+        info: {
+          title: 'API FIPE - BMC Car',
+          description:
+            'API para gerenciamento de veículos, usuários e patrimônio' +
+            ' com integração à tabela FIPE',
+          version: '1.0.0',
+          contact: {
+            name: 'BMC Car',
+            email: 'contato@bmccar.com',
           },
-          servers: [
-            {
-              url: `http://localhost:${PORT}`,
-              description: 'Development server',
-            },
-            {
-              url: 'http://localhost:3001',
-              description: 'Docker container',
-            },
-            ...(process.env.VERCEL_URL
-              ? [{
-                url: `https://${process.env.VERCEL_URL}`,
-                description: 'Production server (Vercel)',
-              }]
-              : []),
-          ],
-          components: {
-            securitySchemes: {
-              bearerAuth: {
-                type: 'http',
-                scheme: 'bearer',
-                bearerFormat: 'JWT',
-              },
-            },
+          license: {
+            name: 'MIT',
           },
-          security: [
-            {
-              bearerAuth: [],
-            },
-          ],
         },
-      })
-      console.log('✅ Swagger registered')
+        servers: [
+          {
+            url: 'https://api.bmccar.com.br',
+            description: 'Production server',
+          },
+          {
+            url: `http://localhost:${PORT}`,
+            description: 'Development server',
+          },
+          {
+            url: 'http://localhost:3001',
+            description: 'Docker container',
+          },
+        ],
+        components: {
+          securitySchemes: {
+            bearerAuth: {
+              type: 'http',
+              scheme: 'bearer',
+              bearerFormat: 'JWT',
+            },
+          },
+        },
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+      },
+    })
+    console.log('✅ Swagger registered')
 
-      // Registrar Swagger UI
-      console.log('🔧 Registering Swagger UI...')
-      await app.register(fastifySwaggerUi, {
-        routePrefix: '/docs',
-        uiConfig: {
-          docExpansion: 'list',
-          deepLinking: false,
-        },
-        staticCSP: true,
-        transformStaticCSP: (header) => header,
-        transformSpecification: (swaggerObject) => {
-          return swaggerObject
-        },
-        transformSpecificationClone: true,
-      })
-      console.log('✅ Swagger UI registered')
-    } else {
-      console.log('⏭️ Skipping Swagger in production for stability')
-    }
+    // Registrar Swagger UI
+    console.log('🔧 Registering Swagger UI...')
+    await app.register(fastifySwaggerUi, {
+      routePrefix: '/docs',
+      uiConfig: {
+        docExpansion: 'list',
+        deepLinking: false,
+      },
+      staticCSP: true,
+      transformStaticCSP: (header) => header,
+      transformSpecification: (swaggerObject) => {
+        return swaggerObject
+      },
+      transformSpecificationClone: true,
+    })
+    console.log('✅ Swagger UI registered')
 
     // Registrar JWT
     console.log('🔧 Registering JWT...')

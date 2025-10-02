@@ -5,9 +5,8 @@
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "isolatedModules": true,
-    "baseUrl": "./src/",
     "paths": {
-      "@/*": ["*"]
+      "@/*": ["./src/*"]
     },
     "outDir": "dist",
     "rootDir": "src",

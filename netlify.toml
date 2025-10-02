@@ -7,11 +7,11 @@
   NODE_VERSION = "20"
 
 [[redirects]]
-  from = "/health"
-  to = "/.netlify/functions/health"
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
   status = 200
 
 [[redirects]]
-  from = "/database/seed"
-  to = "/.netlify/functions/database-seed"
+  from = "/*"
+  to = "/.netlify/functions/api/:splat"
   status = 200

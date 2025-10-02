@@ -64,7 +64,6 @@ describe('Health Routes', () => {
 
         // Em desenvolvimento, deve incluir detalhes extras
         expect(body).toHaveProperty('details')
-        expect(body).toHaveProperty('proxy')
 
         if (body.details) {
           expect(body.details).toHaveProperty('memory')
@@ -72,12 +71,6 @@ describe('Health Routes', () => {
           expect(body.details).toHaveProperty('node_version')
           expect(body.details).toHaveProperty('platform')
           expect(body.details).toHaveProperty('cpu_usage')
-        }
-
-        if (body.proxy) {
-          expect(body.proxy).toHaveProperty('http_proxy')
-          expect(body.proxy).toHaveProperty('https_proxy')
-          expect(body.proxy).toHaveProperty('connectivity_test')
         }
 
         // Restaurar NODE_ENV original
@@ -104,7 +97,6 @@ describe('Health Routes', () => {
 
         // Em produção, não deve incluir detalhes extras
         expect(body).not.toHaveProperty('details')
-        expect(body).not.toHaveProperty('proxy')
 
         // Restaurar NODE_ENV original
         process.env.NODE_ENV = originalNodeEnv

@@ -154,7 +154,8 @@ async function start() {
     console.log('✅ All routes registered')
 
     console.log('🚀 Starting server...')
-    const host = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost'
+    // Sempre usar 0.0.0.0 no Docker para permitir acesso externo ao container
+    const host = '0.0.0.0'
     await app.listen({ port: Number(PORT), host })
     console.log(`🚀 Server listening on ${host}:${PORT}`)
   } catch (error) {

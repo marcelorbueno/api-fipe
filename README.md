@@ -582,14 +582,33 @@ SERVICE_VERSION=1.0.0
 # Verificar saúde da API
 curl http://localhost:3001/health
 
-# Resposta
+# Resposta em produção (simplificada)
 {
-  "status": "ok",
+  "status": "OK",
   "timestamp": "2024-01-15T10:30:00.000Z",
-  "uptime": "2h 30m 45s",
-  "database": "connected",
-  "external_apis": {
-    "fipe": "available"
+  "uptime": 123.45,
+  "environment": "production",
+  "version": "1.0.0",
+  "message": "Service is running"
+}
+
+# Resposta em desenvolvimento (detalhada)
+{
+  "status": "OK",
+  "timestamp": "2024-01-15T10:30:00.000Z",
+  "uptime": 123.45,
+  "environment": "development",
+  "version": "1.0.0",
+  "services": {
+    "database": "connected",
+    "api": "running"
+  },
+  "details": {
+    "memory": {...},
+    "pid": 12345,
+    "node_version": "v18.0.0",
+    "platform": "linux",
+    "cpu_usage": {...}
   }
 }
 ```

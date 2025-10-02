@@ -33,6 +33,9 @@ services:
       - fipe-network
     environment:
       - NODE_ENV=development
+      - DATABASE_URL=postgresql://fipe:senha123@postgres:5432/fipe_db
+      - NO_PROXY=localhost,127.0.0.1,0.0.0.0,postgres
+      - no_proxy=localhost,127.0.0.1,0.0.0.0,postgres
 
 volumes:
   postgres_data:

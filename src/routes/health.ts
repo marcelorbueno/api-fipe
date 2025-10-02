@@ -1,5 +1,4 @@
 import { FastifyInstance, FastifyReply } from 'fastify'
-import axios from '../config/axios'
 import { env } from '../env'
 import { prisma } from '../lib/prisma'
 
@@ -51,60 +50,15 @@ export async function healthRoutes(app: FastifyInstance) {
 
       // ⚠️ Informações detalhadas apenas em desenvolvimento
       if (process.env.NODE_ENV !== 'production') {
-        try {
-          console.log('🔧 [DEV] Testando configurações de proxy...')
-          console.log('HTTP_PROXY:', env.HTTP_PROXY)
-          console.log('HTTPS_PROXY:', env.HTTPS_PROXY)
-
-          // Teste de conectividade externa
-          const connectivityTest = await axios.get('https://httpbin.org/ip')
-
-          // Adicionar informações detalhadas
-          Object.assign(healthData, {
-            details: {
-              memory: process.memoryUsage(),
-              pid: process.pid,
-              node_version: process.version,
-              platform: process.platform,
-              cpu_usage: process.cpuUsage(),
-            },
-            proxy: {
-              http_proxy: env.HTTP_PROXY || 'não configurado',
-              https_proxy: env.HTTPS_PROXY || 'não configurado',
-              connectivity_test: {
-                status: 'success',
-                external_ip: connectivityTest.data,
-                message: 'Conectividade externa OK',
-              },
-            },
-          })
-
-          console.log('✅ Teste de conectividade OK:', connectivityTest.data)
-        } catch (connectivityError) {
-          console.error('❌ Teste de conectividade falhou:', connectivityError)
-
-          // Mesmo com erro de conectividade, incluir informações de proxy
-          Object.assign(healthData, {
-            details: {
-              memory: process.memoryUsage(),
-              pid: process.pid,
-              node_version: process.version,
-              platform: process.platform,
-              cpu_usage: process.cpuUsage(),
-            },
-            proxy: {
-              http_proxy: env.HTTP_PROXY || 'não configurado',
-              https_proxy: env.HTTPS_PROXY || 'não configurado',
-              connectivity_test: {
-                status: 'error',
-                message: 'Falha no teste de conectividade externa',
-                error: connectivityError instanceof Error
-                  ? connectivityError.message
-                  : 'Erro desconhecido',
-              },
-            },
-          })
-        }
+        Object.assign(healthData, {
+          details: {
+            memory: process.memoryUsage(),
+            pid: process.pid,
+            node_version: process.version,
+            platform: process.platform,
+            cpu_usage: process.cpuUsage(),
+          },
+        })
       }
 
       console.log(`✅ Health check executado - Ambiente: ${env.NODE_ENV}`)

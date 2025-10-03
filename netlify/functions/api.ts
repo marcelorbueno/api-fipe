@@ -81,12 +81,8 @@ async function initializeApp() {
       docExpansion: 'list',
       deepLinking: false,
     },
-    staticCSP: true,
-    transformStaticCSP: (header) => header,
-    transformSpecification: (swaggerObject) => {
-      return swaggerObject
-    },
-    transformSpecificationClone: true,
+    staticCSP: false,
+    logLevel: 'warn',
   })
 
   // Registrar JWT
